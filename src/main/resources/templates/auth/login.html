@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">AGTY/DRIVE</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark">
+<div class="auth-view">
+    <div class="auth-card">
+        <div class="brand-logo">AGTY/DRIVE</div>
+        <div class="brand-subtitle">Secure file exchange workspace</div>
+        <h1>Вход</h1>
+        <p>Войдите, чтобы открыть личное файловое пространство и управлять документами, медиа и общими материалами.</p>
+
+        <form class="auth-form" method="post" th:action="@{/login}">
+            <label>
+                Логин
+                <input type="text" name="username" autocomplete="username" required>
+            </label>
+            <label>
+                Пароль
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit">Войти</button>
+            <div class="error-text" th:if="${param.error}">Неверный логин или пароль.</div>
+            <div class="status-text" th:if="${param.logout}">Вы вышли из системы.</div>
+            <div class="status-text" th:if="${param.invited}">Регистрация по инвайту завершена. Теперь можно войти.</div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

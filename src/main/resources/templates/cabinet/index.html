@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">AGTY/DRIVE</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark"
+      th:attr="data-share-open-resource-id=${shareOpenResourceId},data-share-open-resource-type=${shareOpenResourceType},data-share-success=${shareSuccess},data-share-url=${shareUrl},data-item-open-modal=${itemOpenModal},data-item-open-resource-id=${itemOpenResourceId},data-item-open-resource-type=${itemOpenResourceType}">
+<div class="drive-shell">
+    <aside class="drive-sidebar">
+        <div class="drive-sidebar-head">
+            <div class="brand-logo">AGTY/DRIVE</div>
+            <button class="sidebar-search-btn" type="button" data-open-modal="search-modal">⌕</button>
+        </div>
+
+        <div class="sidebar-actions">
+            <button class="action-primary" type="button" data-open-modal="upload-modal">Загрузить</button>
+            <button type="button" data-open-modal="folder-modal">Создать</button>
+        </div>
+
+        <nav class="sidebar-section nav-group">
+            <a class="nav-item active" th:href="@{/cabinet(view=${viewMode},sort=${sortMode},size=${pageSize})}">Файлы</a>
+            <div class="nav-item">Фото</div>
+            <div class="nav-item">Видео</div>
+            <div class="nav-item">Общий доступ</div>
+            <a class="nav-item" href="/cabinet/profile">Профиль</a>
+            <a class="nav-item" sec:authorize="hasRole('ADMIN')" href="/control">Админка</a>
+        </nav>
+
+        <div class="storage-card">
+            <div class="storage-bar"><span th:style="'width:' + ${storageUsagePercent} + '%;'"></span></div>
+            <div class="storage-caption">
+                <div class="storage-line">Файлов: <strong th:text="${#lists.size(files)}">0</strong> <span>•</span> Папок: <strong th:text="${foldersCount}">0</strong></div>
+                <div>Занято: <strong th:text="${filesSizeTitle}">0 Б</strong> / <strong th:text="${storageQuotaTitle}">100 МБ</strong></div>
+            </div>
+            <form method="post" th:action="@{/logout}" style="margin-top:12px;">
+                <button class="ghost-btn" type="submit" style="width:100%;">Выйти</button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="drive-main">
+        <header class="drive-topbar">
+            <div class="drive-heading">
+                <div class="breadcrumbs">
+                    <a th:href="@{/cabinet(view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}">Мой диск</a>
+                    <span th:each="crumb : ${breadcrumbs}">
+                        <span class="breadcrumbs-sep">/</span>
+                        <a th:href="@{/cabinet(folderId=${crumb.id},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}" th:text="${crumb.name}">Папка</a>
+                    </span>
+                </div>
+                <div class="drive-title-wrap">
+                    <div class="entry-icon drive-title-icon folder" aria-hidden="true"></div>
+                    <div class="drive-title" th:text="${currentFolder != null ? currentFolder.name : 'Файлы'}">Файлы</div>
+                </div>
+            </div>
+            <div class="drive-toolbar">
+                <a class="toolbar-chip toolbar-chip-link" sec:authorize="hasRole('ADMIN')" href="/control">Управление</a>
+                <details class="sort-menu">
+                    <summary class="toolbar-chip"><span class="toolbar-icon">⇅</span>
+                        <span th:switch="${sortMode}">
+                            <span th:case="'name_desc'">По имени ↓</span>
+                            <span th:case="'date_newest'">Сначала новые</span>
+                            <span th:case="'date_oldest'">Сначала старые</span>
+                            <span th:case="'size_desc'">Размер ↓</span>
+                            <span th:case="'size_asc'">Размер ↑</span>
+                            <span th:case="'type_asc'">По типу</span>
+                            <span th:case="*">По имени ↑</span>
+                        </span>
+                    </summary>
+                    <div class="sort-menu-list">
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=name_asc,q=${searchQuery},scope=${searchScope},size=${pageSize})}">По имени ↑</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=name_desc,q=${searchQuery},scope=${searchScope},size=${pageSize})}">По имени ↓</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=date_newest,q=${searchQuery},scope=${searchScope},size=${pageSize})}">Сначала новые</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=date_oldest,q=${searchQuery},scope=${searchScope},size=${pageSize})}">Сначала старые</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=size_desc,q=${searchQuery},scope=${searchScope},size=${pageSize})}">Размер ↓</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=size_asc,q=${searchQuery},scope=${searchScope},size=${pageSize})}">Размер ↑</a>
+                        <a class="sort-menu-link" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=type_asc,q=${searchQuery},scope=${searchScope},size=${pageSize})}">По типу</a>
+                    </div>
+                </details>
+                <a class="toolbar-chip toolbar-chip-link"
+                   th:classappend="${viewMode == 'list' ? ' active' : ''}"
+                   th:href="@{/cabinet(folderId=${currentFolderId},view=list,sort=${sortMode},q=${searchQuery},scope=${searchScope},page=${currentPage},size=${pageSize})}"><span class="toolbar-icon">☰</span>Список</a>
+                <a class="toolbar-chip toolbar-chip-link"
+                   th:classappend="${viewMode == 'grid' ? ' active' : ''}"
+                   th:href="@{/cabinet(folderId=${currentFolderId},view=grid,sort=${sortMode},q=${searchQuery},scope=${searchScope},page=${currentPage},size=${pageSize})}"><span class="toolbar-icon">⊞</span>Сетка</a>
+                <a class="toolbar-chip toolbar-chip-link" th:if="${searchActive}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},size=${pageSize})}">Сбросить поиск</a>
+            </div>
+        </header>
+
+        <main class="drive-content">
+            <section class="list-surface" data-upload-dropzone>
+                <div class="list-toolbar list-toolbar-secondary">
+                    <div class="list-toolbar-meta-group">
+                        <a class="toolbar-chip toolbar-chip-link back-chip" th:if="${currentFolder != null and currentFolder.parentId == null}" th:href="@{/cabinet(view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}"><span class="toolbar-icon">←</span>Назад</a>
+                        <a class="toolbar-chip toolbar-chip-link back-chip" th:if="${currentFolder != null and currentFolder.parentId != null}" th:href="@{/cabinet(folderId=${currentFolder.parentId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}"><span class="toolbar-icon">←</span>Назад</a>
+                        <div class="toolbar-meta" th:text="${searchActive ? 'Найдено: ' + totalItems + ' • ' + (searchScope == 'all' ? 'весь диск' : (searchScope == 'tree' ? 'папка и поддиректории' : 'текущая папка')) : 'Всего объектов: ' + totalItems}">Всего объектов: 0</div>
+                    </div>
+                    <div class="page-size-group">
+                        <span class="toolbar-meta">На странице</span>
+                        <a class="page-size-link" th:classappend="${pageSize == 20 ? ' active' : ''}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=20)}">20</a>
+                        <a class="page-size-link" th:classappend="${pageSize == 50 ? ' active' : ''}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=50)}">50</a>
+                        <a class="page-size-link" th:classappend="${pageSize == 100 ? ' active' : ''}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=100)}">100</a>
+                    </div>
+                </div>
+
+                <div class="notice-banner success" th:if="${fileSuccess}" th:text="${fileSuccess}">Файл загружен.</div>
+                <div class="notice-banner success" th:if="${folderSuccess}" th:text="${folderSuccess}">Папка создана.</div>
+                <div class="notice-banner error" th:if="${fileError}" th:text="${fileError}">Ошибка</div>
+                <div class="notice-banner error" th:if="${folderError}" th:text="${folderError}">Ошибка</div>
+                <div class="notice-banner error" th:if="${shareError}" th:text="${shareError}">Ошибка</div>
+
+                <div class="bulk-toolbar" th:if="${not #lists.isEmpty(files) or not #lists.isEmpty(folders)}">
+                    <div class="bulk-toolbar-copy">Выбранные объекты</div>
+                    <div class="row-actions">
+                        <button type="button" class="inline-link" data-bulk-move-trigger>Переместить</button>
+                        <button type="button" class="inline-link inline-link-danger" data-bulk-delete-trigger>Удалить</button>
+                    </div>
+                </div>
+
+                <form method="post" th:action="@{/cabinet/items/bulk/delete}" data-bulk-delete-form>
+                    <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+                    <input type="hidden" name="view" th:value="${viewMode}">
+                    <input type="hidden" name="sort" th:value="${sortMode}">
+                    <input type="hidden" name="q" th:value="${searchQuery}">
+                    <input type="hidden" name="scope" th:value="${searchScope}">
+                    <input type="hidden" name="page" th:value="${currentPage}">
+                    <input type="hidden" name="size" th:value="${pageSize}">
+                    <input type="hidden" name="selectedFileIds" value="" data-bulk-file-ids>
+                    <input type="hidden" name="selectedFolderIds" value="" data-bulk-folder-ids>
+                </form>
+
+                <div class="empty-state" th:if="${#lists.isEmpty(files) and #lists.isEmpty(folders)}" th:text="${searchActive ? 'По вашему запросу ничего не найдено.' : 'Файлов и папок пока нет.'}">Файлов и папок пока нет.</div>
+
+                <table class="file-table" th:if="${(not #lists.isEmpty(files) or not #lists.isEmpty(folders)) and viewMode == 'list'}">
+                    <colgroup>
+                        <col class="col-select">
+                        <col class="col-share">
+                        <col class="col-name">
+                        <col class="col-date">
+                        <col class="col-size">
+                        <col class="col-action">
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th>
+                            <input type="checkbox" data-bulk-toggle-all aria-label="Выбрать все">
+                        </th>
+                        <th></th>
+                        <th>Имя</th>
+                        <th>Дата</th>
+                        <th>Размер</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="folder : ${folders}" th:with="folderShare=${folderShareLinksByFolderId[folder.id]}" class="folder-row" th:attr="data-folder-row=true,data-href=@{/cabinet(folderId=${folder.id},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}">
+                        <td class="select-cell">
+                            <input type="checkbox"
+                                   class="bulk-select-input"
+                                   data-bulk-select-item
+                                   data-bulk-item-type="FOLDER"
+                                   th:attr="data-bulk-item-id=${folder.id}"
+                                   aria-label="Выбрать папку">
+                        </td>
+                        <td class="share-indicator-cell">
+                            <span class="share-indicator"
+                                  th:if="${folderShare != null}"
+                                  title="Есть публичная ссылка"
+                                  aria-label="Есть публичная ссылка">🔗</span>
+                        </td>
+                        <td>
+                            <div class="entry-cell">
+                                <div class="entry-icon folder"></div>
+                                <div class="entry-main">
+                                    <a class="entry-title entry-link" th:href="@{/cabinet(folderId=${folder.id},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}" th:text="${folder.name}">Документы</a>
+                                    <div class="entry-note" th:if="${folder.description != null and !folder.description.isBlank()}" th:text="${folder.description}">Описание</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td th:text="${folder.createdAtTitle}">24.07.2026 12:00</td>
+                        <td>Папка</td>
+                        <td>
+                            <div class="row-actions">
+                                <button type="button"
+                                        class="inline-link"
+                                        data-open-modal="item-actions-modal"
+                                        title="Настройки доступа"
+                                        aria-label="Настройки доступа"
+                                        th:attr="data-item-resource-type='FOLDER',
+                                                 data-item-resource-id=${folder.id},
+                                                 data-item-name=${folder.name},
+                                                 data-item-label='Папка',
+                                                 data-item-current-parent-id=${folder.parentId},
+                                                 data-item-path-key=${folder.pathKey},
+                                                 data-share-resource-type='FOLDER',
+                                                 data-share-resource-id=${folder.id},
+                                                 data-share-item-name=${folder.name},
+                                                 data-share-item-label='Папка',
+                                                 data-share-url=${folderShare != null ? '/s/' + folderShare.token : ''},
+                                                 data-share-expires=${folderShare != null ? folderShare.expiresAtTitle : 'Без срока'},
+                                                 data-share-preview=${folderShare != null and folderShare.allowPreview},
+                                                 data-share-download=${folderShare != null and folderShare.allowDownload}"><span class="action-icon">⚙</span></button>
+                                <a class="inline-link" th:href="@{/cabinet/folders/{id}/download(id=${folder.id})}">Архив</a>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:each="file : ${files}" th:with="share=${shareLinksByFileId[file.id]}">
+                        <td class="select-cell">
+                            <input type="checkbox"
+                                   class="bulk-select-input"
+                                   data-bulk-select-item
+                                   data-bulk-item-type="FILE"
+                                   th:attr="data-bulk-item-id=${file.id}"
+                                   aria-label="Выбрать файл">
+                        </td>
+                        <td class="share-indicator-cell">
+                            <span class="share-indicator"
+                                  th:if="${share != null}"
+                                  title="Есть публичная ссылка"
+                                  aria-label="Есть публичная ссылка">🔗</span>
+                        </td>
+                        <td>
+                            <div class="entry-cell">
+                                <a th:if="${file.thumbnailPreviewReady}" class="entry-thumb-link" th:href="@{/cabinet/files/{id}/content(id=${file.id})}" target="_blank" rel="noopener">
+                                    <img class="entry-thumb-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy">
+                                </a>
+                                <div th:if="${!file.thumbnailPreviewReady and file.videoPreview}" class="entry-video-icon" aria-hidden="true">
+                                    <span class="entry-video-play"></span>
+                                </div>
+                                <div th:if="${!file.thumbnailPreviewReady and !file.videoPreview}" class="entry-icon" th:classappend="${' ' + file.iconType}">
+                                    <span th:text="${file.extensionTitle}">FILE</span>
+                                </div>
+                                <div class="entry-main">
+                                    <div class="entry-title" th:text="${file.originalFilename}">example.pdf</div>
+                                    <div class="entry-note" th:if="${file.description != null and !file.description.isBlank()}" th:text="${file.description}">Описание</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td th:text="${file.createdAtTitle}">24.07.2026 12:00</td>
+                        <td th:text="${file.sizeTitle}">0 Б</td>
+                        <td>
+                            <div class="row-actions">
+                                <button type="button"
+                                        class="inline-link"
+                                        data-open-modal="item-actions-modal"
+                                        title="Настройки доступа"
+                                        aria-label="Настройки доступа"
+                                        th:attr="data-item-resource-type='FILE',
+                                                 data-item-resource-id=${file.id},
+                                                 data-item-name=${file.originalFilename},
+                                                 data-item-label='Файл',
+                                                 data-item-current-parent-id=${file.folderId},
+                                                 data-item-path-key='',
+                                                 data-share-resource-type='FILE',
+                                                 data-share-resource-id=${file.id},
+                                                 data-share-item-name=${file.originalFilename},
+                                                 data-share-item-label='Файл',
+                                                 data-share-url=${share != null ? '/s/' + share.token : ''},
+                                                 data-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},
+                                                 data-share-preview=${share != null and share.allowPreview},
+                                                 data-share-download=${share != null and share.allowDownload}"><span class="action-icon">⚙</span></button>
+                                <a class="inline-link" th:href="@{/cabinet/files/{id}/download(id=${file.id})}">Скачать</a>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+
+                <div class="drive-grid" th:if="${(not #lists.isEmpty(files) or not #lists.isEmpty(folders)) and viewMode == 'grid'}">
+                    <article class="drive-grid-card folder-card"
+                             th:each="folder : ${folders}"
+                             th:with="folderShare=${folderShareLinksByFolderId[folder.id]}">
+                        <div class="grid-card-top">
+                            <input type="checkbox"
+                                   class="bulk-select-input"
+                                   data-bulk-select-item
+                                   data-bulk-item-type="FOLDER"
+                                   th:attr="data-bulk-item-id=${folder.id}"
+                                   aria-label="Выбрать папку">
+                            <span class="share-indicator"
+                                  th:if="${folderShare != null}"
+                                  title="Есть публичная ссылка"
+                                  aria-label="Есть публичная ссылка">🔗</span>
+                        </div>
+                        <a class="grid-card-preview" th:href="@{/cabinet(folderId=${folder.id},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}">
+                            <div class="entry-icon folder grid-folder-icon"></div>
+                        </a>
+                        <div class="grid-card-main">
+                            <a class="grid-card-title" th:href="@{/cabinet(folderId=${folder.id},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},size=${pageSize})}" th:text="${folder.name}">Документы</a>
+                            <div class="grid-card-meta" th:text="${folder.createdAtTitle}">24.07.2026 12:00</div>
+                        </div>
+                        <div class="row-actions">
+                            <button type="button"
+                                    class="inline-link"
+                                    data-open-modal="item-actions-modal"
+                                    title="Настройки доступа"
+                                    aria-label="Настройки доступа"
+                                    th:attr="data-item-resource-type='FOLDER',
+                                             data-item-resource-id=${folder.id},
+                                             data-item-name=${folder.name},
+                                             data-item-label='Папка',
+                                             data-item-current-parent-id=${folder.parentId},
+                                             data-item-path-key=${folder.pathKey},
+                                             data-share-resource-type='FOLDER',
+                                             data-share-resource-id=${folder.id},
+                                             data-share-item-name=${folder.name},
+                                             data-share-item-label='Папка',
+                                             data-share-url=${folderShare != null ? '/s/' + folderShare.token : ''},
+                                             data-share-expires=${folderShare != null ? folderShare.expiresAtTitle : 'Без срока'},
+                                             data-share-preview=${folderShare != null and folderShare.allowPreview},
+                                             data-share-download=${folderShare != null and folderShare.allowDownload}"><span class="action-icon">⚙</span></button>
+                            <a class="inline-link" th:href="@{/cabinet/folders/{id}/download(id=${folder.id})}">Архив</a>
+                        </div>
+                    </article>
+
+                    <article class="drive-grid-card file-card"
+                             th:each="file : ${files}"
+                             th:with="share=${shareLinksByFileId[file.id]}">
+                        <div class="grid-card-top">
+                            <input type="checkbox"
+                                   class="bulk-select-input"
+                                   data-bulk-select-item
+                                   data-bulk-item-type="FILE"
+                                   th:attr="data-bulk-item-id=${file.id}"
+                                   aria-label="Выбрать файл">
+                            <span class="share-indicator"
+                                  th:if="${share != null}"
+                                  title="Есть публичная ссылка"
+                                  aria-label="Есть публичная ссылка">🔗</span>
+                        </div>
+                        <a th:if="${file.thumbnailPreviewReady}" class="grid-card-preview" th:href="@{/cabinet/files/{id}/content(id=${file.id})}" target="_blank" rel="noopener">
+                            <img class="grid-card-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy">
+                        </a>
+                        <div th:if="${!file.thumbnailPreviewReady}" class="grid-card-preview grid-card-preview-fallback">
+                            <div th:if="${file.videoPreview}" class="entry-video-icon grid-video-icon" aria-hidden="true">
+                                <span class="entry-video-play"></span>
+                            </div>
+                            <div th:if="${!file.videoPreview}" class="entry-icon grid-file-icon" th:classappend="${' ' + file.iconType}">
+                                <span th:text="${file.extensionTitle}">FILE</span>
+                            </div>
+                        </div>
+                        <div class="grid-card-main">
+                            <div class="grid-card-title" th:text="${file.originalFilename}">example.pdf</div>
+                            <div class="grid-card-meta" th:text="${file.sizeTitle + ' • ' + file.createdAtTitle}">0 Б</div>
+                        </div>
+                        <div class="row-actions">
+                            <button type="button"
+                                    class="inline-link"
+                                    data-open-modal="item-actions-modal"
+                                    title="Настройки доступа"
+                                    aria-label="Настройки доступа"
+                                    th:attr="data-item-resource-type='FILE',
+                                             data-item-resource-id=${file.id},
+                                             data-item-name=${file.originalFilename},
+                                             data-item-label='Файл',
+                                             data-item-current-parent-id=${file.folderId},
+                                             data-item-path-key='',
+                                             data-share-resource-type='FILE',
+                                             data-share-resource-id=${file.id},
+                                             data-share-item-name=${file.originalFilename},
+                                             data-share-item-label='Файл',
+                                             data-share-url=${share != null ? '/s/' + share.token : ''},
+                                             data-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},
+                                             data-share-preview=${share != null and share.allowPreview},
+                                             data-share-download=${share != null and share.allowDownload}"><span class="action-icon">⚙</span></button>
+                            <a class="inline-link" th:href="@{/cabinet/files/{id}/download(id=${file.id})}">Скачать</a>
+                        </div>
+                    </article>
+                </div>
+                <div class="pagination-bar" th:if="${totalPages > 1}">
+                    <a class="toolbar-chip toolbar-chip-link" th:if="${currentPage > 1}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},page=${currentPage - 1},size=${pageSize})}">← Назад</a>
+                    <div class="pagination-copy" th:text="${'Страница ' + currentPage + ' из ' + totalPages}">Страница 1 из 1</div>
+                    <a class="toolbar-chip toolbar-chip-link" th:if="${currentPage < totalPages}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},q=${searchQuery},scope=${searchScope},page=${currentPage + 1},size=${pageSize})}">Дальше →</a>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="search-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Search</div>
+                <h2>Поиск</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="search-modal">×</button>
+        </div>
+        <form class="folder-form search-modal-form" method="get" th:action="@{/cabinet}">
+            <input type="hidden" name="folderId" th:if="${currentFolderId != null}" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <label>
+                Что ищем
+                <input type="search" name="q" th:value="${searchQuery}" placeholder="Имя файла или папки" autofocus>
+            </label>
+            <label>
+                Где искать
+                <select name="scope">
+                    <option value="current" th:selected="${searchScope == 'current'}">Только в текущей директории</option>
+                    <option value="tree" th:selected="${searchScope == 'tree'}">В директории и поддиректориях</option>
+                    <option value="all" th:selected="${searchScope == 'all'}">Во всех директориях</option>
+                </select>
+            </label>
+            <div class="row-actions confirm-actions">
+                <a class="inline-link" th:if="${searchActive}" th:href="@{/cabinet(folderId=${currentFolderId},view=${viewMode},sort=${sortMode},size=${pageSize})}">Сбросить</a>
+                <button type="submit">Искать</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="folder-modal" hidden>
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Create</div>
+                <h2>Новая папка</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="folder-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/folders/add}" th:object="${folderDto}">
+            <input type="hidden" name="parentId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <label>
+                Название папки
+                <input type="text" th:field="*{name}" maxlength="255" placeholder="Например, Фото 2026" required>
+                <span class="error-text" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Ошибка</span>
+            </label>
+            <label>
+                Описание
+                <input type="text" th:field="*{description}" maxlength="500" placeholder="Короткое описание папки">
+            </label>
+            <button type="submit">Создать папку</button>
+        </form>
+        <div class="status-text" th:if="${folderSuccess}" th:text="${folderSuccess}">Папка создана.</div>
+        <div class="error-text" th:if="${folderError}" th:text="${folderError}">Ошибка</div>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="upload-modal" hidden>
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Upload</div>
+                <h2>Загрузка файла</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="upload-modal">×</button>
+        </div>
+        <form class="folder-form upload-form" method="post" enctype="multipart/form-data" th:action="@{/cabinet/files/upload}" th:object="${fileUploadDto}" data-upload-form>
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <label>
+                Куда загрузить
+                <select th:field="*{folderId}" required>
+                    <option th:if="${currentFolder == null}" value="">Выберите папку</option>
+                    <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}">Текущая папка</option>
+                    <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}">Документы</option>
+                </select>
+            </label>
+            <label>
+                Описание файла
+                <input type="text" th:field="*{description}" maxlength="500" placeholder="Что находится внутри">
+            </label>
+            <div class="upload-dropzone" data-upload-dropzone-inner>
+                <input class="upload-file-input" type="file" th:field="*{file}" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}" required>
+                <div class="upload-dropzone-title">Перетащите файл сюда</div>
+                <div class="upload-dropzone-text">или нажмите, чтобы выбрать файл из системы</div>
+                <div class="upload-dropzone-meta" data-upload-file-name>Файл еще не выбран</div>
+            </div>
+            <button type="submit" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}">Загрузить в диск</button>
+        </form>
+        <div class="status-text" th:if="${fileSuccess}" th:text="${fileSuccess}">Файл загружен.</div>
+        <div class="error-text" th:if="${fileError}" th:text="${fileError}">Ошибка</div>
+        <div class="empty-state" th:if="${currentFolder == null and #lists.isEmpty(folders)}">Сначала создайте хотя бы одну папку, затем загрузка станет доступной.</div>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="item-actions-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="item-actions-header">
+            <div class="item-actions-target">
+                <div class="item-actions-target-icon file" data-item-actions-icon aria-hidden="true"></div>
+                <div class="item-actions-target-name" data-item-actions-name>Имя файла</div>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="item-actions-modal">×</button>
+        </div>
+        <div class="item-actions-body">
+            <div class="item-actions-divider" aria-hidden="true"></div>
+            <div class="item-actions-label">Действия</div>
+            <div class="action-menu">
+                <button type="button" class="action-menu-btn" data-item-share-action>
+                    <span class="action-menu-icon" aria-hidden="true">🔗</span>
+                    <span class="action-menu-copy">
+                        <span class="action-menu-title">Публичная ссылка</span>
+                        <span class="action-menu-text">Открыть доступ и настроить права</span>
+                    </span>
+                </button>
+                <button type="button" class="action-menu-btn" data-item-rename-action>
+                    <span class="action-menu-icon" aria-hidden="true">✎</span>
+                    <span class="action-menu-copy">
+                        <span class="action-menu-title">Переименовать</span>
+                        <span class="action-menu-text">Изменить имя объекта</span>
+                    </span>
+                </button>
+                <button type="button" class="action-menu-btn" data-item-move-action>
+                    <span class="action-menu-icon" aria-hidden="true">⇄</span>
+                    <span class="action-menu-copy">
+                        <span class="action-menu-title">Переместить</span>
+                        <span class="action-menu-text">Выбрать другую директорию</span>
+                    </span>
+                </button>
+                <button type="button" class="action-menu-btn action-menu-btn-danger" data-item-delete-action>
+                    <span class="action-menu-icon" aria-hidden="true">🗑</span>
+                    <span class="action-menu-copy">
+                        <span class="action-menu-title">Удалить</span>
+                        <span class="action-menu-text">Убрать объект из диска</span>
+                </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="item-rename-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Rename</div>
+                <h2>Переименовать</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="item-rename-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/items/rename}" th:object="${itemRenameDto}">
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" th:field="*{resourceType}" data-item-rename-resource-type>
+            <input type="hidden" th:field="*{resourceId}" data-item-rename-resource-id>
+            <div class="confirm-target" data-item-rename-current-name>Имя объекта</div>
+            <label>
+                Новое название
+                <input type="text" th:field="*{newName}" data-item-rename-input maxlength="255" required>
+                <span class="error-text" th:if="${#fields.hasErrors('newName')}" th:errors="*{newName}">Ошибка</span>
+            </label>
+            <div class="error-text" th:if="${renameError}" th:text="${renameError}">Ошибка</div>
+            <button type="submit">Сохранить</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="item-move-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Move</div>
+                <h2>Переместить</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="item-move-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/items/move}" th:object="${itemMoveDto}">
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" th:field="*{resourceType}" data-item-move-resource-type>
+            <input type="hidden" th:field="*{resourceId}" data-item-move-resource-id>
+            <div class="confirm-target" data-item-move-current-name>Имя объекта</div>
+            <label>
+                Куда переместить
+                <select th:field="*{targetFolderId}" data-item-move-target-input>
+                    <option th:each="option : ${moveFolderOptions}"
+                            th:value="${option.id}"
+                            th:text="${option.displayTitle}"
+                            th:attr="data-path-key=${option.pathKey}">Корень диска</option>
+                </select>
+            </label>
+            <div class="error-text" th:if="${moveError}" th:text="${moveError}">Ошибка</div>
+            <button type="submit">Переместить</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="share-modal" hidden>
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Share</div>
+                <h2>Публичная ссылка</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="share-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/shares}" th:object="${shareLinkCreateDto}">
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" th:field="*{resourceType}" data-share-resource-type-input>
+            <input type="hidden" th:field="*{resourceId}" data-share-resource-id-input>
+            <div class="notice-banner success" data-share-result hidden>
+                <span data-share-result-text>Публичная ссылка создана.</span>
+            </div>
+            <label>
+                <span data-share-item-label-view>Файл</span>
+                <input type="text" value="" data-share-file-name-input readonly>
+            </label>
+            <div class="share-current" data-share-current hidden>
+                <div class="share-current-title">Текущая публичная ссылка</div>
+                <input type="text" value="" data-share-url-input readonly>
+                <div class="share-current-meta">
+                    <span><strong>Действует до:</strong> <span data-share-expires-title>Без срока действия</span></span>
+                    <span aria-hidden="true">•</span>
+                    <span data-share-rights-title>Просмотр и скачивание</span>
+                </div>
+                <div class="row-actions">
+                    <a class="inline-link" href="#" data-share-open-link target="_blank" rel="noopener">Открыть</a>
+                    <button type="button" class="inline-link" data-share-copy-link>Копировать</button>
+                    <button type="button" class="inline-link inline-link-danger" data-share-delete-trigger>Удалить ссылку</button>
+                </div>
+            </div>
+            <label>
+                Название ссылки
+                <input type="text" th:field="*{title}" maxlength="255" placeholder="Например, Документ для клиента">
+            </label>
+            <label>
+                Пароль
+                <input type="text" th:field="*{password}" maxlength="255" placeholder="Необязательно">
+            </label>
+            <label>
+                Срок действия, часов
+                <input type="number" th:field="*{expiresInHours}" min="1" step="1" placeholder="24" data-share-expires-hours>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" th:field="*{expiresUnlimited}" data-share-expires-unlimited>
+                <span>Без срока действия</span>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" th:field="*{allowPreview}">
+                <span>Разрешить просмотр</span>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" th:field="*{allowDownload}">
+                <span>Разрешить скачивание</span>
+            </label>
+            <button type="submit">Создать ссылку</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="share-delete-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Warning</div>
+                <h2>Удалить ссылку?</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="share-delete-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/shares/delete}">
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" name="resourceType" value="" data-share-delete-resource-type>
+            <input type="hidden" name="resourceId" value="" data-share-delete-resource-id>
+            <div class="confirm-copy">
+                Публичная ссылка для этого объекта будет удалена. Доступ по ней сразу прекратится.
+            </div>
+            <div class="confirm-target" data-share-delete-item-name>Файл</div>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link" data-close-modal="share-delete-modal">Отмена</button>
+                <button type="submit" class="inline-link inline-link-danger">Удалить ссылку</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="item-delete-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Warning</div>
+                <h2>Удалить объект?</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="item-delete-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/items/delete}" data-item-delete-form>
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" name="resourceType" value="" data-item-delete-resource-type>
+            <input type="hidden" name="resourceId" value="" data-item-delete-resource-id>
+            <div class="confirm-copy">
+                Объект будет удален из вашего диска. Для папки это действие затронет все вложенные файлы и директории.
+            </div>
+            <div class="confirm-target" data-item-delete-name>Файл</div>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link" data-close-modal="item-delete-modal">Отмена</button>
+                <button type="submit" class="inline-link inline-link-danger">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="bulk-move-modal" hidden>
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Move</div>
+                <h2>Переместить выбранное</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="bulk-move-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/items/bulk/move}" data-bulk-move-form>
+            <input type="hidden" name="currentFolderId" th:value="${currentFolderId}">
+            <input type="hidden" name="view" th:value="${viewMode}">
+            <input type="hidden" name="sort" th:value="${sortMode}">
+            <input type="hidden" name="q" th:value="${searchQuery}">
+            <input type="hidden" name="scope" th:value="${searchScope}">
+            <input type="hidden" name="page" th:value="${currentPage}">
+            <input type="hidden" name="size" th:value="${pageSize}">
+            <input type="hidden" name="selectedFileIds" value="" data-bulk-file-ids>
+            <input type="hidden" name="selectedFolderIds" value="" data-bulk-folder-ids>
+            <label>
+                Куда переместить
+                <select name="targetFolderId">
+                    <option th:each="option : ${moveFolderOptions}"
+                            th:value="${option.id}"
+                            th:text="${option.displayTitle}">Корень диска</option>
+                </select>
+            </label>
+            <button type="submit">Переместить</button>
+        </form>
+    </div>
+</div>
+
+<div class="drag-overlay" hidden data-drag-overlay>
+    <div class="drag-overlay-box">
+        <div class="drag-overlay-title">Отпустите, чтобы загрузить</div>
+        <div class="drag-overlay-text">Файл будет добавлен в выбранную папку через окно загрузки.</div>
+    </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

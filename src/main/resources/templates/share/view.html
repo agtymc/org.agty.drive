@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">AGTY/DRIVE Share</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark">
+<div class="auth-view">
+    <div class="auth-card" style="width:min(760px,100%);">
+        <div class="brand-logo">AGTY/DRIVE</div>
+        <h1 th:text="${shareTitle != null ? shareTitle : (sharedFile != null ? sharedFile.originalFilename : 'Публичная ссылка')}">Публичная ссылка</h1>
+        <p th:if="${shareLink != null and shareLink.title != null and !shareLink.title.isBlank()}" th:text="${shareLink.title}">Описание</p>
+        <p class="error-text" th:if="${shareError}" th:text="${shareError}">Ошибка</p>
+
+        <div th:if="${shareLink != null and !shareUnlocked}" class="panel" style="margin-top:16px;">
+            <p style="margin-top:0;">Для доступа по ссылке требуется пароль.</p>
+            <form class="folder-form" method="post" th:action="@{/s/{token}/unlock(token=${shareLink.token})}">
+                <input th:if="${sharedFolder != null}" type="hidden" name="folderId" th:value="${sharedFolder.id}">
+                <input th:if="${sharedFolder != null}" type="hidden" name="q" th:value="${sharedSearchQuery}">
+                <input th:if="${sharedFolder != null}" type="hidden" name="page" th:value="${sharedCurrentPage}">
+                <input th:if="${sharedFolder != null}" type="hidden" name="size" th:value="${sharedPageSize}">
+                <label>
+                    Пароль
+                    <input type="password" name="password" placeholder="Введите пароль" required>
+                </label>
+                <button type="submit">Открыть доступ</button>
+            </form>
+        </div>
+
+        <div th:if="${shareLink != null and sharedFile != null and shareUnlocked}" class="panel" style="margin-top:16px;">
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-key">Файл</span>
+                    <strong th:text="${sharedFile.originalFilename}">file.pdf</strong>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Размер</span>
+                    <strong th:text="${sharedFile.sizeTitle}">0 Б</strong>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Срок действия</span>
+                    <strong th:text="${shareLink.expiresAtTitle}">Без срока</strong>
+                </div>
+            </div>
+
+            <div class="header-actions" style="margin-top:16px;">
+                <a class="ghost-link"
+                   th:if="${shareLink.allowPreview and !sharedFile.imagePreview and !sharedFile.videoPreview and !sharedFile.audioPreview}"
+                   th:href="@{/s/{token}/content(token=${shareLink.token})}"
+                   target="_blank"
+                   rel="noopener">Просмотр</a>
+                <a class="ghost-link" th:if="${shareLink.allowDownload}" th:href="@{/s/{token}/download(token=${shareLink.token})}">Скачать</a>
+            </div>
+
+            <div th:if="${sharedFile.imagePreview and shareLink.allowPreview}" style="margin-top:16px;">
+                <img th:src="@{/s/{token}/content(token=${shareLink.token})}" th:alt="${sharedFile.originalFilename}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);display:block;">
+            </div>
+            <div th:if="${sharedFile.videoPreview and shareLink.allowPreview}" class="share-video-wrap">
+                <div class="share-video-player" data-video-player>
+                    <div class="share-video-stage" data-media-stage>
+                        <video class="share-video-element" data-video-element playsinline preload="metadata">
+                            <source th:src="@{/s/{token}/content(token=${shareLink.token})}" th:type="${sharedFile.mimeType}">
+                        </video>
+                    </div>
+                    <div class="share-video-controls">
+                        <div class="share-video-progress-wrap">
+                            <input type="range" min="0" max="100" value="0" class="share-video-progress" data-video-progress>
+                        </div>
+                        <div class="share-video-controls-row">
+                            <div class="share-video-controls-left">
+                                <button type="button" class="share-video-button" data-video-toggle aria-label="Воспроизвести"></button>
+                                <div class="share-video-time" data-video-time>00:00 / 00:00</div>
+                            </div>
+                            <div class="share-video-controls-right">
+                                <div class="share-video-volume-wrap">
+                                    <button type="button" class="share-video-volume-button" data-video-mute aria-label="Выключить звук"></button>
+                                    <input type="range" min="0" max="100" value="50" class="share-video-volume" data-video-volume>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div th:if="${sharedFile.audioPreview and shareLink.allowPreview}" class="share-video-wrap">
+                <div class="share-video-player share-audio-player" data-video-player>
+                    <div class="share-video-stage share-audio-stage" data-media-stage>
+                        <audio data-video-element preload="metadata">
+                            <source th:src="@{/s/{token}/content(token=${shareLink.token})}" th:type="${sharedFile.mimeType}">
+                        </audio>
+                        <div class="share-audio-note">
+                            <div class="share-audio-icon" aria-hidden="true"></div>
+                            <div class="share-audio-meta">
+                                <div class="share-audio-title" th:text="${sharedFile.originalFilename}">track.mp3</div>
+                                <div class="share-audio-subtitle">Музыкальный файл</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="share-video-controls">
+                        <div class="share-video-progress-wrap">
+                            <input type="range" min="0" max="100" value="0" class="share-video-progress" data-video-progress>
+                        </div>
+                        <div class="share-video-controls-row">
+                            <div class="share-video-controls-left">
+                                <button type="button" class="share-video-button" data-video-toggle aria-label="Воспроизвести"></button>
+                                <div class="share-video-time" data-video-time>00:00 / 00:00</div>
+                            </div>
+                            <div class="share-video-controls-right">
+                                <div class="share-video-volume-wrap">
+                                    <button type="button" class="share-video-volume-button" data-video-mute aria-label="Выключить звук"></button>
+                                    <input type="range" min="0" max="100" value="50" class="share-video-volume" data-video-volume>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div th:if="${shareLink != null and sharedFolder != null and shareUnlocked}" class="panel" style="margin-top:16px;">
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-key">Папка</span>
+                    <strong th:text="${sharedFolder.name}">Документы</strong>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Срок действия</span>
+                    <strong th:text="${shareLink.expiresAtTitle}">Без срока</strong>
+                </div>
+            </div>
+
+            <div class="header-actions" style="margin-top:16px;">
+                <a class="ghost-link"
+                   th:if="${shareLink.allowDownload}"
+                   th:href="${sharedFolderRoot != null and sharedFolder != null and sharedFolderRoot.id != sharedFolder.id ? '/s/' + shareLink.token + '/download?folderId=' + sharedFolder.id : '/s/' + shareLink.token + '/download'}">Скачать архив</a>
+            </div>
+
+            <div th:if="${shareLink.allowPreview}" style="margin-top:16px;">
+                <div class="breadcrumbs">
+                    <a th:href="@{/s/{token}(token=${shareLink.token})}">Публичная папка</a>
+                    <span th:each="crumb : ${sharedFolderBreadcrumbs}">
+                        <span class="breadcrumbs-sep">/</span>
+                        <a th:href="@{/s/{token}(token=${shareLink.token},folderId=${crumb.id},size=${sharedPageSize})}" th:text="${crumb.name}">Папка</a>
+                    </span>
+                </div>
+
+                <div class="share-folder-toolbar">
+                    <form class="search-toolbar-form search-toolbar-form-wide" method="get" th:action="@{/s/{token}(token=${shareLink.token})}">
+                        <input type="hidden" name="folderId" th:value="${sharedFolder.id}">
+                        <input type="hidden" name="size" th:value="${sharedPageSize}">
+                        <input class="search-toolbar-input" type="search" name="q" th:value="${sharedSearchQuery}" placeholder="Поиск в папке">
+                        <button type="submit" class="toolbar-chip">Найти</button>
+                        <a class="toolbar-chip toolbar-chip-link" th:if="${sharedSearchActive}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},size=${sharedPageSize})}">Сбросить</a>
+                    </form>
+                    <div class="page-size-group">
+                        <span class="toolbar-meta">На странице</span>
+                        <a class="page-size-link" th:classappend="${sharedPageSize == 20 ? ' active' : ''}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},q=${sharedSearchQuery},size=20)}">20</a>
+                        <a class="page-size-link" th:classappend="${sharedPageSize == 50 ? ' active' : ''}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},q=${sharedSearchQuery},size=50)}">50</a>
+                        <a class="page-size-link" th:classappend="${sharedPageSize == 100 ? ' active' : ''}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},q=${sharedSearchQuery},size=100)}">100</a>
+                    </div>
+                </div>
+
+                <div class="toolbar-meta" th:text="${sharedSearchActive ? 'Найдено: ' + sharedTotalItems : 'Всего объектов: ' + sharedTotalItems}">Всего объектов: 0</div>
+
+                <div class="empty-state" th:if="${#lists.isEmpty(sharedFolders) and #lists.isEmpty(sharedFiles)}" th:text="${sharedSearchActive ? 'По вашему запросу ничего не найдено.' : 'В папке пока нет файлов и вложенных директорий.'}">В папке пока нет файлов и вложенных директорий.</div>
+
+                <div class="share-folder-table-wrap" th:if="${not #lists.isEmpty(sharedFolders) or not #lists.isEmpty(sharedFiles)}">
+                <table class="file-table" style="margin-top:12px;">
+                    <colgroup>
+                        <col class="col-name">
+                        <col class="col-date">
+                        <col class="col-size">
+                        <col class="col-action">
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th>Имя</th>
+                        <th>Дата</th>
+                        <th>Размер</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="folder : ${sharedFolders}">
+                        <td>
+                            <div class="entry-cell">
+                                <div class="entry-icon folder"></div>
+                                <div class="entry-main">
+                                    <a class="entry-title entry-link" th:href="@{/s/{token}(token=${shareLink.token},folderId=${folder.id},size=${sharedPageSize})}" th:text="${folder.name}">Папка</a>
+                                </div>
+                            </div>
+                        </td>
+                        <td th:text="${folder.createdAtTitle}">24.07.2026 12:00</td>
+                        <td>Папка</td>
+                        <td></td>
+                    </tr>
+                    <tr th:each="file : ${sharedFiles}">
+                        <td>
+                            <div class="entry-cell">
+                                <div th:if="${!file.thumbnailPreviewReady and !file.videoPreview}" class="entry-icon" th:classappend="${' ' + file.iconType}">
+                                    <span th:text="${file.extensionTitle}">FILE</span>
+                                </div>
+                                <a th:if="${file.thumbnailPreviewReady}" class="entry-thumb-link" th:href="@{/s/{token}/files/{id}/content(token=${shareLink.token},id=${file.id})}" target="_blank" rel="noopener">
+                                    <img class="entry-thumb-image" th:src="@{/s/{token}/files/{id}/thumbnail(token=${shareLink.token},id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy">
+                                </a>
+                                <div th:if="${!file.thumbnailPreviewReady and file.videoPreview}" class="entry-video-icon" aria-hidden="true">
+                                    <span class="entry-video-play"></span>
+                                </div>
+                                <div class="entry-main">
+                                    <div class="entry-title" th:text="${file.originalFilename}">example.pdf</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td th:text="${file.createdAtTitle}">24.07.2026 12:00</td>
+                        <td th:text="${file.sizeTitle}">0 Б</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="inline-link" th:if="${shareLink.allowPreview}" th:href="@{/s/{token}/files/{id}/content(token=${shareLink.token},id=${file.id})}" target="_blank" rel="noopener">Открыть</a>
+                                <a class="inline-link" th:if="${shareLink.allowDownload}" th:href="@{/s/{token}/files/{id}/download(token=${shareLink.token},id=${file.id})}">Скачать</a>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                </div>
+                <div class="pagination-bar" th:if="${sharedTotalPages > 1}">
+                    <a class="toolbar-chip toolbar-chip-link" th:if="${sharedCurrentPage > 1}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},q=${sharedSearchQuery},page=${sharedCurrentPage - 1},size=${sharedPageSize})}">← Назад</a>
+                    <div class="pagination-copy" th:text="${'Страница ' + sharedCurrentPage + ' из ' + sharedTotalPages}">Страница 1 из 1</div>
+                    <a class="toolbar-chip toolbar-chip-link" th:if="${sharedCurrentPage < sharedTotalPages}" th:href="@{/s/{token}(token=${shareLink.token},folderId=${sharedFolder.id},q=${sharedSearchQuery},page=${sharedCurrentPage + 1},size=${sharedPageSize})}">Дальше →</a>
+                </div>
+            </div>
+
+            <div class="empty-state" th:if="${!shareLink.allowPreview}" style="margin-top:16px;">
+                Просмотр содержимого папки отключен для этой ссылки.
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/js/share-player.js"></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+-- Baseline migration for AGTY/DRIVE.
+-- Flyway metadata is stored in the standard flyway_schema_history table.

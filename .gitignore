@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+\!files
+content
+AGENTS.md
+config.ini

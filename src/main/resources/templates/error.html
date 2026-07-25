@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">AGTY/DRIVE Error</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark">
+<div class="auth-view">
+    <div class="auth-card" style="width:min(720px,100%);">
+        <div class="brand-logo">AGTY/DRIVE</div>
+        <div class="brand-subtitle">Error</div>
+        <h1 th:text="${errorTitle}">Ошибка приложения</h1>
+        <p th:text="${errorMessage}">Во время обработки запроса произошла ошибка.</p>
+
+        <div class="panel" style="margin-top:16px;">
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-key">Код</span>
+                    <strong th:text="${statusCode}">500</strong>
+                </div>
+                <div class="info-row" th:if="${requestPath != null}">
+                    <span class="info-key">Путь</span>
+                    <strong th:text="${requestPath}">/cabinet</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="header-actions" style="margin-top:16px;">
+            <a class="ghost-link" href="/cabinet">В кабинет</a>
+            <a class="ghost-link" href="/">На главную</a>
+            <a class="ghost-link" href="javascript:history.back()">Назад</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

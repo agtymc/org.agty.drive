@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">AGTY/DRIVE Invite</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark">
+<div class="auth-view">
+    <div class="auth-card">
+        <div class="brand-logo">AGTY/DRIVE</div>
+        <div class="brand-subtitle">Invite registration</div>
+        <h1>Регистрация по инвайту</h1>
+
+        <div th:if="${invite != null}" class="info-list" style="margin-bottom:20px;">
+            <div class="info-row"><span>Логин</span><strong th:text="${invite.login}">user</strong></div>
+            <div class="info-row"><span>E-mail</span><strong th:text="${invite.email != null ? invite.email : '—'}">—</strong></div>
+            <div class="info-row"><span>Роль</span><strong th:text="${invite.roleTitle != null ? invite.roleTitle : invite.roleCode}">Пользователь</strong></div>
+            <div class="info-row"><span>Срок</span><strong th:text="${invite.expiresAtTitle}">Без срока</strong></div>
+        </div>
+
+        <div class="error-text" th:if="${inviteError}" th:text="${inviteError}">Ошибка</div>
+
+        <form class="auth-form" method="post" th:if="${inviteAvailable}" th:action="@{/invite/{token}(token=${invite.token})}" th:object="${inviteAcceptDto}">
+            <label>
+                Пароль
+                <input type="password" th:field="*{password}" autocomplete="new-password" minlength="8" required>
+            </label>
+            <label>
+                Подтверждение пароля
+                <input type="password" th:field="*{confirmPassword}" autocomplete="new-password" minlength="8" required>
+            </label>
+            <button type="submit">Завершить регистрацию</button>
+        </form>
+
+        <a class="ghost-link" href="/login" style="margin-top:16px; display:inline-block;">Ко входу</a>
+    </div>
+</div>
+</body>
+</html>
