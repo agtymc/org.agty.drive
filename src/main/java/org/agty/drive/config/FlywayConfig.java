@@ -9,12 +9,13 @@ public class FlywayConfig {
 
     @Bean(initMethod = "migrate")
     public Flyway flyway() {
+        String schema = LocalConfig.getString("db.agtydrive.schema", "public");
         String baseUrl = "jdbc:postgresql://%s:%s/%s".formatted(
                 LocalConfig.getString("db.agtydrive.server", "localhost"),
                 LocalConfig.getString("db.agtydrive.port", "5432"),
                 LocalConfig.getString("db.agtydrive.database", "agtydrive")
         );
-        String url = AppTime.buildJdbcUrl(baseUrl);
+        String url = AppTime.buildJdbcUrl(baseUrl, schema);
 
         return Flyway.configure()
                 .dataSource(
@@ -22,7 +23,7 @@ public class FlywayConfig {
                         LocalConfig.getString("db.agtydrive.user", "postgres"),
                         LocalConfig.getString("db.agtydrive.password", "")
                 )
-                .schemas(LocalConfig.getString("db.agtydrive.schema", "public"))
+                .schemas(schema)
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .load();

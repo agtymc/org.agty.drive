@@ -17,7 +17,8 @@ public class DataSourceConfig {
                 LocalConfig.getString("db.agtydrive.port", "5432"),
                 LocalConfig.getString("db.agtydrive.database", "agtydrive")
         );
-        String url = AppTime.buildJdbcUrl(baseUrl);
+        String schema = LocalConfig.getString("db.agtydrive.schema", "public");
+        String url = AppTime.buildJdbcUrl(baseUrl, schema);
 
         HikariDataSource dataSource = DataSourceBuilder.create()
                 .type(HikariDataSource.class)

@@ -112,12 +112,23 @@ public final class AppTime {
     }
 
     public static String buildJdbcUrl(String baseUrl) {
+        return buildJdbcUrl(baseUrl, null);
+    }
+
+    public static String buildJdbcUrl(String baseUrl, String schema) {
         if (baseUrl == null || baseUrl.isBlank()) {
             return baseUrl;
         }
         String separator = baseUrl.contains("?") ? "&" : "?";
-        String option = URLEncoder.encode("-c TimeZone=" + getZoneIdValue(), StandardCharsets.UTF_8);
-        return baseUrl + separator + "options=" + option;
+        StringBuilder url = new StringBuilder(baseUrl);
+        url.append(separator)
+                .append("options=")
+                .append(URLEncoder.encode("-c TimeZone=" + getZoneIdValue(), StandardCharsets.UTF_8));
+        if (schema != null && !schema.isBlank()) {
+            url.append("&currentSchema=")
+                    .append(URLEncoder.encode(schema.trim(), StandardCharsets.UTF_8));
+        }
+        return url.toString();
     }
 
     public static String getSessionTimeZoneSql() {

@@ -7,12 +7,13 @@ APP_DESCRIPTION="AGTY/Drive Service"
 SERVICE_NAME="${APP_NAME}.service"
 REQUIRED_JAVA_MAJOR="21"
 DEFAULT_INSTALL_DIR="/opt/${APP_NAME}"
+DEFAULT_GITHUB_REPO="agtymc/org.agty.drive"
 DEFAULT_DB_HOST="localhost"
 DEFAULT_DB_PORT="5432"
 DEFAULT_DB_NAME="agtydrive"
 DEFAULT_DB_SCHEMA="public"
 DEFAULT_DB_USER="postgres"
-DEFAULT_BIND_ADDRESS="0.0.0.0"
+DEFAULT_BIND_ADDRESS="127.0.0.1"
 DEFAULT_BIND_PORT="8080"
 DEFAULT_TIMEZONE="Europe/Moscow"
 DEFAULT_APP_TITLE="AGTY/DRIVE"
@@ -25,6 +26,7 @@ DEFAULT_DB_POOL_MAX_SIZE="32"
 DEFAULT_DB_POOL_MAX_LIFETIME_MIN="30"
 DEFAULT_DB_POOL_BORROW_TIMEOUT_MS="300"
 DEFAULT_BOOTSTRAP_ADMIN_LOGIN="admin"
+DEFAULT_BOOTSTRAP_ADMIN_PASSWORD="admin"
 DEFAULT_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrator"
 
 warn() {
@@ -74,7 +76,9 @@ confirm() {
     local prompt_text="$1"
     local answer=""
     read -r -p "${prompt_text} [y/N]: " answer
-    [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]]
+    answer="${answer#"${answer%%[![:space:]]*}"}"
+    answer="${answer%"${answer##*[![:space:]]}"}"
+    [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
 }
 
 parse_java_major() {
@@ -130,8 +134,8 @@ JAVA_MAJOR="$(parse_java_major "$JAVA_VERSION_LINE" || true)"
 if [[ -z "$JAVA_MAJOR" ]]; then
     fail "Unable to detect Java version from: ${JAVA_VERSION_LINE}"
 fi
-if [[ "$JAVA_MAJOR" != "$REQUIRED_JAVA_MAJOR" ]]; then
-    fail "Java ${REQUIRED_JAVA_MAJOR} is required. Detected: ${JAVA_VERSION_LINE}"
+if (( JAVA_MAJOR < REQUIRED_JAVA_MAJOR )); then
+    fail "Java ${REQUIRED_JAVA_MAJOR} or newer is required. Detected: ${JAVA_VERSION_LINE}"
 fi
 
 DEFAULT_SERVICE_USER="${SUDO_USER:-$(id -un)}"
@@ -144,8 +148,7 @@ printf 'Installer will create application directories, download latest release a
 
 INSTALL_DIR="$(prompt_value "Install directory" "$DEFAULT_INSTALL_DIR")"
 SERVICE_USER="$(prompt_value "System user for service" "$DEFAULT_SERVICE_USER")"
-GITHUB_REPO="$(prompt_value "GitHub repository in owner/repo format" "")"
-[[ -n "$GITHUB_REPO" ]] || fail "GitHub repository is required."
+GITHUB_REPO="$DEFAULT_GITHUB_REPO"
 
 id "$SERVICE_USER" >/dev/null 2>&1 || fail "User '$SERVICE_USER' does not exist."
 
@@ -172,15 +175,14 @@ CONTENT_DIR_DEFAULT="${INSTALL_DIR}/content"
 CONTENT_DIR="$(prompt_value "Content storage directory" "$CONTENT_DIR_DEFAULT")"
 UPLOAD_MAX_FILE_SIZE="$(prompt_value "Max single file upload size" "$DEFAULT_UPLOAD_MAX_FILE_SIZE")"
 UPLOAD_MAX_REQUEST_SIZE="$(prompt_value "Max request upload size" "$DEFAULT_UPLOAD_MAX_REQUEST_SIZE")"
-SESSION_TIMEOUT_MINUTES="$(prompt_value "Session timeout in minutes" "$DEFAULT_SESSION_TIMEOUT_MINUTES")"
-SESSION_COOKIE_MAX_AGE_MINUTES="$(prompt_value "Session cookie max age in minutes" "$DEFAULT_SESSION_COOKIE_MAX_AGE_MINUTES")"
-DB_POOL_MAX_SIZE="$(prompt_value "DB pool max size" "$DEFAULT_DB_POOL_MAX_SIZE")"
-DB_POOL_MAX_LIFETIME_MIN="$(prompt_value "DB pool max lifetime minutes" "$DEFAULT_DB_POOL_MAX_LIFETIME_MIN")"
-DB_POOL_BORROW_TIMEOUT_MS="$(prompt_value "DB pool borrow timeout ms" "$DEFAULT_DB_POOL_BORROW_TIMEOUT_MS")"
-BOOTSTRAP_ADMIN_LOGIN="$(prompt_value "Bootstrap admin login" "$DEFAULT_BOOTSTRAP_ADMIN_LOGIN")"
-BOOTSTRAP_ADMIN_PASSWORD="$(prompt_secret "Bootstrap admin password")"
-[[ -n "$BOOTSTRAP_ADMIN_PASSWORD" ]] || fail "Bootstrap admin password cannot be empty."
-BOOTSTRAP_ADMIN_DISPLAY_NAME="$(prompt_value "Bootstrap admin display name" "$DEFAULT_BOOTSTRAP_ADMIN_DISPLAY_NAME")"
+SESSION_TIMEOUT_MINUTES="$DEFAULT_SESSION_TIMEOUT_MINUTES"
+SESSION_COOKIE_MAX_AGE_MINUTES="$DEFAULT_SESSION_COOKIE_MAX_AGE_MINUTES"
+DB_POOL_MAX_SIZE="$DEFAULT_DB_POOL_MAX_SIZE"
+DB_POOL_MAX_LIFETIME_MIN="$DEFAULT_DB_POOL_MAX_LIFETIME_MIN"
+DB_POOL_BORROW_TIMEOUT_MS="$DEFAULT_DB_POOL_BORROW_TIMEOUT_MS"
+BOOTSTRAP_ADMIN_LOGIN="$DEFAULT_BOOTSTRAP_ADMIN_LOGIN"
+BOOTSTRAP_ADMIN_PASSWORD="$DEFAULT_BOOTSTRAP_ADMIN_PASSWORD"
+BOOTSTRAP_ADMIN_DISPLAY_NAME="$DEFAULT_BOOTSTRAP_ADMIN_DISPLAY_NAME"
 
 printf 'Checking PostgreSQL connection...\n'
 if ! PGPASSWORD="$DB_PASSWORD" psql \
@@ -218,10 +220,10 @@ Prepare latest release with these assets and run installer again:
 3. Mark the release as latest."
 fi
 
-JAR_DOWNLOAD_URL="$(extract_latest_asset_url "$RELEASE_JSON" '/[^/]+\.jar$')"
+JAR_DOWNLOAD_URL="$(extract_latest_asset_url "$RELEASE_JSON" '/org-agty-drive-[^/]+\.jar$')"
 CONFIG_DOWNLOAD_URL="$(extract_latest_asset_url "$RELEASE_JSON" '/config\.ini([.-]sample)?$')"
 
-[[ -n "$JAR_DOWNLOAD_URL" ]] || fail "Latest GitHub release does not contain a jar asset.
+[[ -n "$JAR_DOWNLOAD_URL" ]] || fail "Latest GitHub release does not contain the expected jar asset.
 
 Prepare latest release with:
 - org-agty-drive-<version>.jar
@@ -343,6 +345,12 @@ printf 'Service: %s\n' "$SERVICE_NAME"
 printf 'Config: %s\n' "$CONFIG_PATH"
 printf 'Sample config: %s\n' "$CONFIG_SAMPLE_PATH"
 printf 'Logs: %s\n' "$LOG_DIR"
+printf '\nWait about 30 seconds for the service to finish starting.\n'
+printf '\nConnection details:\n'
+printf '  URL: %s\n' "$APP_URI"
+printf '  Login: %s\n' "$BOOTSTRAP_ADMIN_LOGIN"
+printf '  Password: %s\n' "$BOOTSTRAP_ADMIN_PASSWORD"
+printf '  Note: on a non-first installation with an existing database, use the login and password already stored in the database.\n'
 printf '\nUseful commands:\n'
 printf '  systemctl status %s\n' "$SERVICE_NAME"
 printf '  journalctl -u %s -f\n' "$SERVICE_NAME"

@@ -21,7 +21,36 @@ public class BootstrapAdminInitializer {
             String password = LocalConfig.getString("bootstrap.admin.password", "admin");
             String displayName = LocalConfig.getString("bootstrap.admin.display_name", "Administrator");
 
-            if (userService.findByLogin(login) != null) {
+            UserDto configuredUser = userService.findByLogin(login);
+            if (shouldRefreshSeededAdmin(userService.countAll(), configuredUser, login, displayName)) {
+                configuredUser.setPasswordHash(passwordEncoder.encode(password));
+                configuredUser.setDisplayName(displayName);
+
+                UserDto updated = userService.save(configuredUser);
+                if (updated != null && updated.getId() != null) {
+                    log.info("Refreshed seeded bootstrap admin login={} from config", login);
+                } else {
+                    log.error("Failed to refresh seeded bootstrap admin login={} from config", login);
+                }
+                return;
+            }
+
+            if (configuredUser != null) {
+                return;
+            }
+
+            UserDto defaultAdmin = userService.findByLogin("admin");
+            if (shouldReplaceSeededAdmin(userService.countAll(), defaultAdmin, login)) {
+                defaultAdmin.setLogin(login);
+                defaultAdmin.setPasswordHash(passwordEncoder.encode(password));
+                defaultAdmin.setDisplayName(displayName);
+
+                UserDto updated = userService.save(defaultAdmin);
+                if (updated != null && updated.getId() != null) {
+                    log.info("Updated seeded bootstrap admin login={} to configured login={}", "admin", login);
+                } else {
+                    log.error("Failed to update seeded bootstrap admin to configured login={}", login);
+                }
                 return;
             }
 
@@ -40,5 +69,31 @@ public class BootstrapAdminInitializer {
                 log.error("Failed to create bootstrap admin user login={}", login);
             }
         };
+    }
+
+    private boolean shouldRefreshSeededAdmin(long totalUsers, UserDto configuredUser, String configuredLogin, String configuredDisplayName) {
+        if (totalUsers != 1L || configuredUser == null) {
+            return false;
+        }
+        if (!"ROLE_ADMIN".equals(configuredUser.getRoleCode())) {
+            return false;
+        }
+        if (!configuredLogin.equals(configuredUser.getLogin())) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean shouldReplaceSeededAdmin(long totalUsers, UserDto defaultAdmin, String configuredLogin) {
+        if (totalUsers != 1L || defaultAdmin == null) {
+            return false;
+        }
+        if (!"admin".equals(defaultAdmin.getLogin())) {
+            return false;
+        }
+        if (!"ROLE_ADMIN".equals(defaultAdmin.getRoleCode())) {
+            return false;
+        }
+        return !"admin".equals(configuredLogin);
     }
 }

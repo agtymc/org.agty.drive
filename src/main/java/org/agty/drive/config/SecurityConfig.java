@@ -18,19 +18,22 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider(
+    private DaoAuthenticationProvider authenticationProvider(
             DriveUserDetailsService driveUserDetailsService,
-            PasswordEncoder passwordEncoder
-    ) {
+            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(driveUserDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
         return provider;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            DriveUserDetailsService driveUserDetailsService,
+            PasswordEncoder passwordEncoder
+    ) throws Exception {
         http
+                .authenticationProvider(authenticationProvider(driveUserDetailsService, passwordEncoder))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/register", "/invite/**", "/static/**", "/css/**", "/js/**", "/s/**").permitAll()
                         .requestMatchers("/control/**").hasRole("ADMIN")
