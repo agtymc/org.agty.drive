@@ -20,6 +20,8 @@ import org.agty.drive.dto.FileItemDto;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.RenderingHints;
@@ -28,12 +30,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 
 @Service
 public class ImageThumbnailService {
 
     private static final int THUMBNAIL_SIZE = 320;
+    private static final float JPEG_QUALITY = 0.75f;
 
     private final FileContentStorageService fileContentStorageService;
     private final FileRepositoryAdapter fileRepositoryAdapter;
@@ -56,9 +60,10 @@ public class ImageThumbnailService {
             }
 
             BufferedImage thumbnail = buildThumbnail(sourceImage);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(thumbnail, "jpeg", outputStream);
-            fileContentStorageService.save(StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()), outputStream.toByteArray());
+            fileContentStorageService.save(
+                    StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()),
+                    writeJpeg(thumbnail)
+            );
             return true;
         } catch (IOException e) {
             return false;
@@ -81,9 +86,10 @@ public class ImageThumbnailService {
             }
 
             BufferedImage thumbnail = buildThumbnail(sourceImage);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(thumbnail, "jpeg", outputStream);
-            fileContentStorageService.save(StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()), outputStream.toByteArray());
+            fileContentStorageService.save(
+                    StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()),
+                    writeJpeg(thumbnail)
+            );
             return true;
         } catch (IOException e) {
             return false;
@@ -153,6 +159,29 @@ public class ImageThumbnailService {
             graphics.dispose();
         }
         return targetImage;
+    }
+
+    private byte[] writeJpeg(BufferedImage thumbnail) throws IOException {
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (!writers.hasNext()) {
+            throw new IOException("JPEG writer is not available");
+        }
+
+        ImageWriter writer = writers.next();
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             var imageOutputStream = ImageIO.createImageOutputStream(outputStream)) {
+            writer.setOutput(imageOutputStream);
+            ImageWriteParam writeParam = writer.getDefaultWriteParam();
+            if (writeParam.canWriteCompressed()) {
+                writeParam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                writeParam.setCompressionQuality(JPEG_QUALITY);
+            }
+            writer.write(null, new javax.imageio.IIOImage(thumbnail, null, null), writeParam);
+            imageOutputStream.flush();
+            return outputStream.toByteArray();
+        } finally {
+            writer.dispose();
+        }
     }
 
     @Service
