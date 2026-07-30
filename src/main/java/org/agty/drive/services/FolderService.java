@@ -12,9 +12,12 @@ import java.util.List;
 public class FolderService {
 
     private final FolderRepository folderRepository;
+    private final ExpirationPolicyService expirationPolicyService;
 
-    public FolderService(FolderRepository folderRepository) {
+    public FolderService(FolderRepository folderRepository,
+                         ExpirationPolicyService expirationPolicyService) {
         this.folderRepository = folderRepository;
+        this.expirationPolicyService = expirationPolicyService;
     }
 
     public List<FolderDto> findRootFoldersByOwnerId(Long ownerId) {
@@ -82,6 +85,10 @@ public class FolderService {
 
     public FolderDto save(FolderDto folderDto) {
         return folderRepository.save(folderDto);
+    }
+
+    public List<FolderDto> findExpiredActiveFolders() {
+        return folderRepository.findExpiredActiveFolders();
     }
 
     public String renameByIdAndOwnerId(Long id, Long ownerId, String newName) {
@@ -165,6 +172,36 @@ public class FolderService {
 
     public String buildPathKeyForCreate(Long ownerId, Long parentId, String folderName) {
         return buildPathKey(ownerId, parentId, folderName);
+    }
+
+    public String validateExpirationInput(String expiresAtInput) {
+        return expirationPolicyService.validateExpirationInput(expiresAtInput);
+    }
+
+    public void normalizeExpiration(FolderDto folderDto) {
+        if (folderDto == null) {
+            return;
+        }
+        folderDto.setExpiresAt(expirationPolicyService.normalizeExpirationInput(folderDto.getExpiresAt()));
+    }
+
+    public String updateExpirationByIdAndOwnerId(Long id, Long ownerId, String expiresAtInput, boolean expiresUnlimited) {
+        FolderDto folderDto = findByIdAndOwnerId(id, ownerId);
+        if (folderDto == null) {
+            return "Папка не найдена.";
+        }
+
+        if (expiresUnlimited) {
+            folderDto.setExpiresAt(null);
+        } else {
+            String expirationError = expirationPolicyService.validateExpirationInput(expiresAtInput);
+            if (expirationError != null) {
+                return expirationError;
+            }
+            folderDto.setExpiresAt(expirationPolicyService.normalizeExpirationInput(expiresAtInput));
+        }
+
+        return save(folderDto) == null ? "Не удалось обновить свойства папки." : null;
     }
 
     private void appendMoveOptions(List<FolderMoveOptionDto> result, Long ownerId, Long parentId, String prefix) {

@@ -59,6 +59,23 @@ public final class MediaResponseSupport {
                                                              String filename,
                                                              boolean inline,
                                                              String rangeHeader) {
+        return buildPathResponse(path, mediaType, filename, inline, rangeHeader, false);
+    }
+
+    public static ResponseEntity<Resource> buildEphemeralPathResponse(Path path,
+                                                                      MediaType mediaType,
+                                                                      String filename,
+                                                                      boolean inline,
+                                                                      String rangeHeader) {
+        return buildPathResponse(path, mediaType, filename, inline, rangeHeader, true);
+    }
+
+    private static ResponseEntity<Resource> buildPathResponse(Path path,
+                                                              MediaType mediaType,
+                                                              String filename,
+                                                              boolean inline,
+                                                              String rangeHeader,
+                                                              boolean deleteOnClose) {
         if (path == null || !Files.exists(path) || !Files.isRegularFile(path)) {
             return ResponseEntity.notFound().build();
         }
@@ -80,7 +97,10 @@ public final class MediaResponseSupport {
         Range range = parseRange(rangeHeader, Math.toIntExact(Math.min(Integer.MAX_VALUE, contentLength)));
         if (range == null) {
             headers.setContentLength(contentLength);
-            return new ResponseEntity<>(new FileSystemResource(path), headers, HttpStatus.OK);
+            if (!deleteOnClose) {
+                return new ResponseEntity<>(new FileSystemResource(path), headers, HttpStatus.OK);
+            }
+            return new ResponseEntity<>(new InputStreamResource(openAutoDeletingStream(path)), headers, HttpStatus.OK);
         }
 
         if (!range.valid()) {
@@ -91,18 +111,35 @@ public final class MediaResponseSupport {
         long rangeLength = (long) range.end() - range.start() + 1L;
         headers.setContentLength(rangeLength);
         headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + range.start() + "-" + range.end() + "/" + contentLength);
-        return new ResponseEntity<>(new InputStreamResource(openRangeStream(path, range.start(), rangeLength)), headers, HttpStatus.PARTIAL_CONTENT);
+        return new ResponseEntity<>(
+                new InputStreamResource(openRangeStream(path, range.start(), rangeLength, deleteOnClose)),
+                headers,
+                HttpStatus.PARTIAL_CONTENT
+        );
     }
 
     private static InputStream openRangeStream(Path path, long offset, long length) {
+        return openRangeStream(path, offset, length, false);
+    }
+
+    private static InputStream openRangeStream(Path path, long offset, long length, boolean deleteOnClose) {
         try {
             InputStream inputStream = Files.newInputStream(path);
             if (offset > 0) {
                 inputStream.skipNBytes(offset);
             }
-            return new LimitedInputStream(inputStream, length);
+            InputStream limited = new LimitedInputStream(inputStream, length);
+            return deleteOnClose ? new DeletingInputStream(limited, path) : limited;
         } catch (IOException e) {
             throw new RuntimeException("Failed to open ranged stream for " + path, e);
+        }
+    }
+
+    private static InputStream openAutoDeletingStream(Path path) {
+        try {
+            return new DeletingInputStream(Files.newInputStream(path), path);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to open stream for " + path, e);
         }
     }
 
@@ -198,6 +235,35 @@ public final class MediaResponseSupport {
         @Override
         public void close() throws IOException {
             delegate.close();
+        }
+    }
+
+    private static final class DeletingInputStream extends InputStream {
+        private final InputStream delegate;
+        private final Path path;
+
+        private DeletingInputStream(InputStream delegate, Path path) {
+            this.delegate = delegate;
+            this.path = path;
+        }
+
+        @Override
+        public int read() throws IOException {
+            return delegate.read();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return delegate.read(b, off, len);
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                delegate.close();
+            } finally {
+                Files.deleteIfExists(path);
+            }
         }
     }
 }

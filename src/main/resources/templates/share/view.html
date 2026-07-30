@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${title}">AGTY/DRIVE Share</title>
+    <title th:text="${applicationInfo.pageTitle(pageTitle)}">Публичная ссылка :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
     <link rel="stylesheet" href="/css/app.css">
 </head>
 <body data-theme="dark">
 <div class="auth-view">
     <div class="auth-card" style="width:min(760px,100%);">
-        <div class="brand-logo">AGTY/DRIVE</div>
+        <div class="brand-logo" th:text="${applicationTitle}">AGTY/DRIVE</div>
         <h1 th:text="${shareTitle != null ? shareTitle : (sharedFile != null ? sharedFile.originalFilename : 'Публичная ссылка')}">Публичная ссылка</h1>
         <p th:if="${shareLink != null and shareLink.title != null and !shareLink.title.isBlank()}" th:text="${shareLink.title}">Описание</p>
         <p class="error-text" th:if="${shareError}" th:text="${shareError}">Ошибка</p>

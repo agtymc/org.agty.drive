@@ -8,6 +8,7 @@ import org.agty.drive.services.FileContentStorageService;
 import org.agty.drive.services.FileService;
 import org.agty.drive.services.FolderArchiveService;
 import org.agty.drive.services.FolderService;
+import org.agty.drive.services.MimeTypePolicyService;
 import org.agty.drive.services.ShareLinkService;
 import org.agty.drive.web.MediaResponseSupport;
 import org.springframework.http.ContentDisposition;
@@ -38,17 +39,20 @@ public class ShareMvcController {
     private final FileContentStorageService fileContentStorageService;
     private final FolderService folderService;
     private final FolderArchiveService folderArchiveService;
+    private final MimeTypePolicyService mimeTypePolicyService;
 
     public ShareMvcController(ShareLinkService shareLinkService,
                               FileService fileService,
                               FileContentStorageService fileContentStorageService,
                               FolderService folderService,
-                              FolderArchiveService folderArchiveService) {
+                              FolderArchiveService folderArchiveService,
+                              MimeTypePolicyService mimeTypePolicyService) {
         this.shareLinkService = shareLinkService;
         this.fileService = fileService;
         this.fileContentStorageService = fileContentStorageService;
         this.folderService = folderService;
         this.folderArchiveService = folderArchiveService;
+        this.mimeTypePolicyService = mimeTypePolicyService;
     }
 
     @GetMapping("{token}")
@@ -61,7 +65,7 @@ public class ShareMvcController {
                        Model model) {
         ShareLinkDto shareLink = shareLinkService.findByToken(token);
         if (!shareLinkService.isAccessible(shareLink)) {
-            model.addAttribute("title", "AGTY/DRIVE Share");
+            model.addAttribute("pageTitle", "Публичная ссылка");
             model.addAttribute("shareError", "Ссылка недоступна или срок ее действия истек.");
             return "share/view";
         }
@@ -83,7 +87,7 @@ public class ShareMvcController {
                          Model model) {
         ShareLinkDto shareLink = shareLinkService.findByToken(token);
         if (!shareLinkService.isAccessible(shareLink)) {
-            model.addAttribute("title", "AGTY/DRIVE Share");
+            model.addAttribute("pageTitle", "Публичная ссылка");
             model.addAttribute("shareError", "Ссылка недоступна или срок ее действия истек.");
             return "share/view";
         }
@@ -117,20 +121,19 @@ public class ShareMvcController {
                 return ResponseEntity.notFound().build();
             }
 
-            byte[] archive = folderArchiveService.buildFolderArchive(currentFolder);
-            if (archive == null) {
+            var archivePath = folderArchiveService.buildFolderArchiveTempFile(currentFolder);
+            if (archivePath == null) {
                 return ResponseEntity.notFound().build();
             }
 
             shareLinkService.registerDownload(shareLink);
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .contentLength(archive.length)
-                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                            .filename(currentFolder.getName() + ".zip", StandardCharsets.UTF_8)
-                            .build()
-                            .toString())
-                    .body(archive);
+            return MediaResponseSupport.buildEphemeralPathResponse(
+                    archivePath,
+                    MediaType.APPLICATION_OCTET_STREAM,
+                    currentFolder.getName() + ".zip",
+                    false,
+                    null
+            );
         }
 
         FileItemDto file = resolveFile(shareLink);
@@ -276,13 +279,13 @@ public class ShareMvcController {
     private String buildFileView(Model model, ShareLinkDto shareLink, HttpSession session, String shareError) {
         FileItemDto file = resolveFile(shareLink);
         if (file == null) {
-            model.addAttribute("title", "AGTY/DRIVE File Not Found");
+            model.addAttribute("pageTitle", "Файл не найден");
             model.addAttribute("shareTitle", "Файл не найден");
             model.addAttribute("shareError", "Файл по ссылке не найден.");
             return "share/view";
         }
 
-        model.addAttribute("title", "AGTY/DRIVE Share");
+        model.addAttribute("pageTitle", "Публичная ссылка");
         model.addAttribute("shareLink", shareLink);
         model.addAttribute("sharedFile", file);
         model.addAttribute("shareUnlocked", isUnlocked(session, shareLink));
@@ -302,7 +305,7 @@ public class ShareMvcController {
                                    String shareError) {
         FolderDto rootFolder = resolveFolder(shareLink);
         if (rootFolder == null) {
-            model.addAttribute("title", "AGTY/DRIVE Folder Not Found");
+            model.addAttribute("pageTitle", "Папка не найдена");
             model.addAttribute("shareTitle", "Папка не найдена");
             model.addAttribute("shareError", "Папка по ссылке не найдена.");
             return "share/view";
@@ -310,14 +313,14 @@ public class ShareMvcController {
 
         FolderDto currentFolder = resolveFolderInTree(rootFolder, folderId);
         if (currentFolder == null) {
-            model.addAttribute("title", "AGTY/DRIVE Folder Not Found");
+            model.addAttribute("pageTitle", "Папка не найдена");
             model.addAttribute("shareTitle", "Папка не найдена");
             model.addAttribute("shareError", "Папка по ссылке не найдена.");
             return "share/view";
         }
 
         boolean unlocked = isUnlocked(session, shareLink);
-        model.addAttribute("title", "AGTY/DRIVE Share");
+        model.addAttribute("pageTitle", "Публичная ссылка");
         model.addAttribute("shareTitle", currentFolder.getName());
         model.addAttribute("shareLink", shareLink);
         model.addAttribute("sharedFolderRoot", rootFolder);
@@ -442,10 +445,7 @@ public class ShareMvcController {
     }
 
     private MediaType resolveMediaType(FileItemDto file) {
-        if (file.getMimeType() != null && !file.getMimeType().isBlank()) {
-            return MediaType.parseMediaType(file.getMimeType());
-        }
-        return MediaType.APPLICATION_OCTET_STREAM;
+        return mimeTypePolicyService.resolveResponseMediaType(file == null ? null : file.getMimeType());
     }
 
     private String normalizeSearchQuery(String value) {

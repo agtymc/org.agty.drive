@@ -1,7 +1,9 @@
 package org.agty.drive.services;
 
 import org.agty.drive.config.AppTime;
+import org.agty.drive.config.ApplicationInfo;
 import org.agty.drive.dto.AdminUserCreateDto;
+import org.agty.drive.dto.OpenRegistrationDto;
 import org.agty.drive.dto.ProfileSecuritySettingsDto;
 import org.agty.drive.dto.UserDto;
 import org.agty.drive.dto.UsersRoleDictionaryDto;
@@ -20,19 +22,26 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UsersRoleDictionaryService usersRoleDictionaryService;
     private final UsersStatusDictionaryService usersStatusDictionaryService;
+    private final ApplicationInfo applicationInfo;
 
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        UsersRoleDictionaryService usersRoleDictionaryService,
-                       UsersStatusDictionaryService usersStatusDictionaryService) {
+                       UsersStatusDictionaryService usersStatusDictionaryService,
+                       ApplicationInfo applicationInfo) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.usersRoleDictionaryService = usersRoleDictionaryService;
         this.usersStatusDictionaryService = usersStatusDictionaryService;
+        this.applicationInfo = applicationInfo;
     }
 
     public UserDto findByLogin(String login) {
         return userRepository.findByLogin(login);
+    }
+
+    public UserDto findByEmail(String email) {
+        return userRepository.findByEmail(email);
     }
 
     public UserDto findById(Long id) {
@@ -81,7 +90,7 @@ public class UserService {
         dto.setTwoFactorTotpEnabled(Boolean.TRUE.equals(user.getTwoFactorTotpEnabled()));
         dto.setTwoFactorTotpSecret(user.getTwoFactorTotpSecret());
         if (user.getTwoFactorTotpSecret() != null && !user.getTwoFactorTotpSecret().isBlank()) {
-            dto.setTwoFactorTotpUri(TotpSupport.buildOtpAuthUri("AGTY/DRIVE", user.getLogin(), user.getTwoFactorTotpSecret()));
+            dto.setTwoFactorTotpUri(TotpSupport.buildOtpAuthUri(applicationInfo.getTitle(), user.getLogin(), user.getTwoFactorTotpSecret()));
         }
         return dto;
     }
@@ -192,6 +201,43 @@ public class UserService {
             return "Пароль должен содержать минимум 8 символов.";
         }
         return validateAdminCreateForInvite(createDto);
+    }
+
+    public String validateOpenRegistration(OpenRegistrationDto registrationDto) {
+        if (registrationDto == null) {
+            return "Данные регистрации не переданы.";
+        }
+        if (registrationDto.getPassword() == null || registrationDto.getPassword().length() < 8) {
+            return "Пароль должен содержать минимум 8 символов.";
+        }
+        if (!registrationDto.getPassword().equals(registrationDto.getConfirmPassword())) {
+            return "Подтверждение пароля не совпадает.";
+        }
+
+        AdminUserCreateDto createDto = new AdminUserCreateDto();
+        createDto.setLogin(registrationDto.getLogin());
+        createDto.setEmail(registrationDto.getEmail());
+        createDto.setDisplayName(registrationDto.getDisplayName());
+        createDto.setPassword(registrationDto.getPassword());
+        createDto.setRoleCode("ROLE_USER");
+        createDto.setStatusCode("ACTIVE");
+        createDto.setStorageQuotaMb(100L);
+        return validateAdminCreate(createDto);
+    }
+
+    public UserDto registerOpenUser(OpenRegistrationDto registrationDto) {
+        if (registrationDto == null) {
+            return null;
+        }
+        AdminUserCreateDto createDto = new AdminUserCreateDto();
+        createDto.setLogin(registrationDto.getLogin());
+        createDto.setEmail(registrationDto.getEmail());
+        createDto.setDisplayName(registrationDto.getDisplayName());
+        createDto.setPassword(registrationDto.getPassword());
+        createDto.setRoleCode("ROLE_USER");
+        createDto.setStatusCode("ACTIVE");
+        createDto.setStorageQuotaMb(100L);
+        return createByAdmin(null, createDto);
     }
 
     public String validateAdminCreateForInvite(AdminUserCreateDto createDto) {

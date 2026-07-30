@@ -37,6 +37,9 @@ public class AgdrvFolder {
     @Column(name = "description", skipIfNull = true)
     private String description;
 
+    @Column(name = "expires_at", skipIfNull = true)
+    private String expiresAt;
+
     @Column(name = "sort_order")
     private Integer sortOrder;
 }

@@ -1,0 +1,40 @@
+[application]
+title = "AGTY/DRIVE"
+about = "Private file storage and sharing workspace"
+uri = "http://127.0.0.1:8080"
+
+[server]
+port = "8080"
+address = "0.0.0.0"
+
+[app]
+timezone = "Europe/Moscow"
+
+[db]
+pool.max.size = "32"
+pool.max.lifetime.min = "30"
+pool.borrow.timeout.ms = "300"
+
+[db.agtydrive]
+server = "localhost"
+port = "5432"
+user = "postgres"
+password = "change-me"
+database = "agtydrive"
+schema = "public"
+
+[bootstrap.admin]
+login = "admin"
+password = "change-me"
+display_name = "Administrator"
+
+[session]
+timeout_minutes = "43200"
+cookie_max_age_minutes = "43200"
+
+[storage]
+content_dir = "content"
+
+[upload]
+max_file_size = "1024MB"
+max_request_size = "1024MB"

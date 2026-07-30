@@ -8,8 +8,10 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -18,9 +20,15 @@ public final class AppTime {
     public static final String DEFAULT_TIME_ZONE = "Europe/Moscow";
 
     private static final DateTimeFormatter DB_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter INPUT_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+    private static final DateTimeFormatter DB_DATE_TIME_WITH_OPTIONAL_FRACTION = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss")
+            .optionalStart()
+            .appendFraction(ChronoField.NANO_OF_SECOND, 1, 6, true)
+            .optionalEnd()
+            .toFormatter();
     private static final List<DateTimeFormatter> DB_INPUT_FORMATTERS = List.of(
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"),
+            DB_DATE_TIME_WITH_OPTIONAL_FRACTION,
             DB_DATE_TIME
     );
 
@@ -58,6 +66,22 @@ public final class AppTime {
 
     public static String formatForDatabase(LocalDateTime value) {
         return value == null ? null : value.format(DB_DATE_TIME);
+    }
+
+    public static String formatForDateTimeInput(String value) {
+        LocalDateTime parsed = parseDatabaseDateTime(value);
+        return parsed == null ? "" : parsed.format(INPUT_DATE_TIME);
+    }
+
+    public static LocalDateTime parseDateTimeInput(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value.trim(), INPUT_DATE_TIME);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 
     public static LocalDateTime parseDatabaseDateTime(String value) {

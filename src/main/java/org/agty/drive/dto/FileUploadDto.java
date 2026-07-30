@@ -7,5 +7,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileUploadDto {
     private Long folderId;
     private String description;
+    private String expiresAt;
+    private Boolean overwriteExisting;
     private MultipartFile file;
 }

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<th:block th:fragment="library-sidebar">
+    <aside class="drive-sidebar">
+        <div class="drive-sidebar-head">
+            <div class="brand-logo" th:text="${applicationTitle}">AGTY/DRIVE</div>
+            <button class="sidebar-search-btn" type="button" data-open-modal="search-modal">⌕</button>
+        </div>
+
+        <div class="sidebar-actions">
+            <button class="action-primary" type="button" data-open-modal="upload-modal" th:if="${libraryMode != 'collaborative' or collaborativeBrowsing}">Загрузить</button>
+            <button type="button" data-open-modal="folder-modal" th:if="${libraryMode != 'collaborative' or collaborativeBrowsing}">Создать</button>
+            <button class="action-primary sidebar-placeholder" type="button" aria-hidden="true" tabindex="-1" th:if="${libraryMode == 'collaborative' and !collaborativeBrowsing}">Загрузить</button>
+            <button type="button" class="sidebar-placeholder" aria-hidden="true" tabindex="-1" th:if="${libraryMode == 'collaborative' and !collaborativeBrowsing}">Создать</button>
+        </div>
+
+        <nav class="sidebar-section nav-group">
+            <a class="nav-item" th:classappend="${libraryMode == 'files' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('files')}">Файлы</a>
+            <a class="nav-item" th:classappend="${libraryMode == 'photos' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('photos')}">Фото</a>
+            <a class="nav-item" th:classappend="${libraryMode == 'videos' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('videos')}">Видео</a>
+            <a class="nav-item" th:classappend="${libraryMode == 'shared' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('shared')}">Открытый доступ</a>
+            <a class="nav-item" th:classappend="${cabinetSection == 'collaborative' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('collaborative')}">Совместный доступ</a>
+            <a class="nav-item" th:classappend="${cabinetSection == 'profile' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('profile')}">Профиль</a>
+        </nav>
+
+        <div class="storage-card">
+            <div class="storage-bar"><span th:style="'width:' + ${storageUsagePercent} + '%;'"></span></div>
+            <div class="storage-caption">
+                <div class="storage-line">Файлов: <strong th:text="${#lists.size(files)}">0</strong> <span>•</span> Папок: <strong th:text="${foldersCount}">0</strong></div>
+                <div>Занято: <strong th:text="${filesSizeTitle}">0 Б</strong> / <strong th:text="${storageQuotaTitle}">100 МБ</strong></div>
+            </div>
+            <form method="post" th:action="@{/logout}" class="storage-logout-form">
+                <button class="ghost-btn storage-logout-btn" type="submit">Выйти</button>
+            </form>
+        </div>
+    </aside>
+</th:block>
+
+<th:block th:fragment="profile-sidebar">
+    <aside class="drive-sidebar">
+        <div class="drive-sidebar-head">
+            <div class="brand-logo" th:text="${applicationTitle}">AGTY/DRIVE</div>
+            <button class="sidebar-search-btn sidebar-placeholder" type="button" aria-hidden="true" tabindex="-1">⌕</button>
+        </div>
+
+        <div class="sidebar-actions">
+            <a class="action-primary" th:href="${cabinetRoutes.sectionPath('files')}">К диску</a>
+            <button type="button" class="sidebar-placeholder" aria-hidden="true" tabindex="-1">Создать</button>
+        </div>
+
+        <nav class="sidebar-section nav-group">
+            <a class="nav-item" th:href="${cabinetRoutes.sectionPath('files')}">Файлы</a>
+            <a class="nav-item" th:href="${cabinetRoutes.sectionPath('photos')}">Фото</a>
+            <a class="nav-item" th:href="${cabinetRoutes.sectionPath('videos')}">Видео</a>
+            <a class="nav-item" th:href="${cabinetRoutes.sectionPath('shared')}">Открытый доступ</a>
+            <a class="nav-item" th:classappend="${cabinetSection == 'collaborative' ? ' active' : ''}" th:href="${cabinetRoutes.sectionPath('collaborative')}">Совместный доступ</a>
+            <a class="nav-item active" th:href="${cabinetRoutes.sectionPath('profile')}">Профиль</a>
+        </nav>
+
+        <div class="storage-card">
+            <div class="storage-caption">
+                <div class="storage-line">Профиль и безопасность</div>
+                <div>Занято: <strong th:text="${filesSizeTitle}">0 Б</strong> / <strong th:text="${storageQuotaTitle}">100 МБ</strong></div>
+                <div>Папок в диске: <strong th:text="${foldersCount}">0</strong></div>
+            </div>
+            <form method="post" th:action="@{/logout}" class="storage-logout-form">
+                <button class="ghost-btn storage-logout-btn" type="submit">Выйти</button>
+            </form>
+        </div>
+    </aside>
+</th:block>
+
+<th:block th:fragment="library-topbar">
+    <header class="drive-topbar">
+        <div class="drive-heading">
+            <div class="breadcrumbs">
+                <a th:href="${cabinetRoutes.pagePath('files', null, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Мой диск</a>
+                <span th:each="crumb : ${breadcrumbs}">
+                    <span class="breadcrumbs-sep">/</span>
+                    <a th:href="${cabinetRoutes.pagePath('files', crumb.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}" th:text="${crumb.name}">Папка</a>
+                </span>
+            </div>
+            <div class="drive-title-wrap">
+                <div class="entry-icon drive-title-icon folder" aria-hidden="true"></div>
+                <div class="drive-title" th:text="${currentFolder != null ? currentFolder.name : (libraryMode == 'photos' ? 'Фото' : (libraryMode == 'videos' ? 'Видео' : (libraryMode == 'shared' ? 'Открытый доступ' : (libraryMode == 'collaborative' ? 'Совместный доступ' : 'Файлы'))))}">Файлы</div>
+            </div>
+        </div>
+        <div class="drive-toolbar">
+            <a class="toolbar-chip toolbar-chip-link" sec:authorize="hasRole('ADMIN')" th:href="${cabinetRoutes.controlPath()}">Управление</a>
+            <details class="sort-menu" th:if="${libraryMode != 'collaborative'}">
+                <summary class="toolbar-chip"><span class="toolbar-icon">⇅</span>
+                    <span th:if="${libraryMode != 'shared'}" th:switch="${sortMode}">
+                        <span th:case="'name_desc'">По имени ↓</span>
+                        <span th:case="'date_newest'">Сначала новые</span>
+                        <span th:case="'date_oldest'">Сначала старые</span>
+                        <span th:case="'size_desc'">Размер ↓</span>
+                        <span th:case="'size_asc'">Размер ↑</span>
+                        <span th:case="'type_asc'">По типу</span>
+                        <span th:case="*">По имени ↑</span>
+                    </span>
+                    <span th:if="${libraryMode == 'shared'}" th:switch="${sortMode}">
+                        <span th:case="'name_desc'">Имя ↓</span>
+                        <span th:case="'date_newest'">Сначала новые</span>
+                        <span th:case="'date_oldest'">Сначала старые</span>
+                        <span th:case="'expiry_asc'">Срок ближе</span>
+                        <span th:case="'expiry_desc'">Срок дальше</span>
+                        <span th:case="'status_asc'">По статусу</span>
+                        <span th:case="'type_asc'">По типу</span>
+                        <span th:case="*">Имя ↑</span>
+                    </span>
+                </summary>
+                <div class="sort-menu-list" th:if="${libraryMode != 'shared'}">
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'name_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">По имени ↑</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'name_desc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">По имени ↓</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'date_newest', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сначала новые</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'date_oldest', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сначала старые</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'size_desc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Размер ↓</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'size_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Размер ↑</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, 'type_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">По типу</a>
+                </div>
+                <div class="sort-menu-list" th:if="${libraryMode == 'shared'}">
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'name_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Имя ↑</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'name_desc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Имя ↓</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'date_newest', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сначала новые</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'date_oldest', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сначала старые</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'expiry_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Срок ближе</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'expiry_desc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Срок дальше</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'status_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">По статусу</a>
+                    <a class="sort-menu-link" th:href="${cabinetRoutes.pagePath(cabinetSection, null, viewMode, 'type_asc', searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">По типу</a>
+                </div>
+            </details>
+            <a class="toolbar-chip toolbar-chip-link" th:if="${libraryMode != 'collaborative'}"
+               th:classappend="${viewMode == 'list' ? ' active' : ''}"
+               th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, 'list', sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, currentPage, pageSize)}"><span class="toolbar-icon">☰</span>Список</a>
+            <a class="toolbar-chip toolbar-chip-link" th:if="${libraryMode != 'collaborative'}"
+               th:classappend="${viewMode == 'grid' ? ' active' : ''}"
+               th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, 'grid', sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, currentPage, pageSize)}"><span class="toolbar-icon">⊞</span>Сетка</a>
+            <a class="toolbar-chip toolbar-chip-link" th:if="${searchActive and libraryMode != 'collaborative'}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, null, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сбросить поиск</a>
+        </div>
+    </header>
+</th:block>
+
+<th:block th:fragment="profile-topbar">
+    <header class="drive-topbar">
+        <div class="drive-heading">
+            <div class="breadcrumbs">
+                <a th:href="${cabinetRoutes.sectionPath('files')}">Мой диск</a>
+                <span class="breadcrumbs-sep">/</span>
+                <span>Профиль</span>
+            </div>
+            <div class="drive-title-wrap">
+                <div class="entry-icon drive-title-icon file" aria-hidden="true"><span>USR</span></div>
+                <div class="drive-title">Профиль</div>
+            </div>
+        </div>
+    </header>
+</th:block>
+
+<th:block th:fragment="cabinet-state-fields(includeFolderId)">
+    <input type="hidden" name="currentFolderId" th:if="${includeFolderId and cabinetState.currentFolderId != null}" th:value="${cabinetState.currentFolderId}">
+    <input type="hidden" name="section" th:value="${cabinetState.section}">
+    <input type="hidden" name="view" th:value="${cabinetState.view}">
+    <input type="hidden" name="sort" th:value="${cabinetState.sort}">
+    <input type="hidden" name="q" th:value="${cabinetState.q}">
+    <input type="hidden" name="scope" th:value="${cabinetState.scope}">
+    <input type="hidden" name="shareStatus" th:value="${cabinetState.shareStatus}">
+    <input type="hidden" name="shareType" th:value="${cabinetState.shareType}">
+    <input type="hidden" name="collaborativeAccessId" th:if="${cabinetState.collaborativeAccessId != null}" th:value="${cabinetState.collaborativeAccessId}">
+    <input type="hidden" name="page" th:value="${cabinetState.page}">
+    <input type="hidden" name="size" th:value="${cabinetState.size}">
+</th:block>
+</body>
+</html>

@@ -1,14 +1,18 @@
 package org.agty.drive.web.controllers.mvc.control;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.agty.drive.config.ApplicationInfo;
 import org.agty.drive.dto.AdminUserAccessUpdateDto;
 import org.agty.drive.dto.AdminUserCreateDto;
 import org.agty.drive.dto.AuditLogDto;
+import org.agty.drive.dto.RegistrationSettingsDto;
 import org.agty.drive.dto.UserDto;
 import org.agty.drive.dto.UserInviteCreateDto;
 import org.agty.drive.dto.UserInviteDto;
 import org.agty.drive.security.service.DriveUserDetails;
 import org.agty.drive.services.AuditLogService;
+import org.agty.drive.services.AppSettingService;
 import org.agty.drive.services.FileService;
 import org.agty.drive.services.FolderService;
 import org.agty.drive.services.UserInviteService;
@@ -44,6 +48,8 @@ public class ControlMvcController {
     private final UsersStatusDictionaryService usersStatusDictionaryService;
     private final AuditLogService auditLogService;
     private final UserInviteService userInviteService;
+    private final AppSettingService appSettingService;
+    private final ApplicationInfo applicationInfo;
 
     public ControlMvcController(UserService userService,
                                 FolderService folderService,
@@ -51,7 +57,9 @@ public class ControlMvcController {
                                 UsersRoleDictionaryService usersRoleDictionaryService,
                                 UsersStatusDictionaryService usersStatusDictionaryService,
                                 AuditLogService auditLogService,
-                                UserInviteService userInviteService) {
+                                UserInviteService userInviteService,
+                                AppSettingService appSettingService,
+                                ApplicationInfo applicationInfo) {
         this.userService = userService;
         this.folderService = folderService;
         this.fileService = fileService;
@@ -59,6 +67,8 @@ public class ControlMvcController {
         this.usersStatusDictionaryService = usersStatusDictionaryService;
         this.auditLogService = auditLogService;
         this.userInviteService = userInviteService;
+        this.appSettingService = appSettingService;
+        this.applicationInfo = applicationInfo;
     }
 
     @ModelAttribute("adminUserCreateDto")
@@ -85,9 +95,18 @@ public class ControlMvcController {
         return dto;
     }
 
+    @ModelAttribute("registrationSettingsDto")
+    public RegistrationSettingsDto registrationSettingsForm() {
+        RegistrationSettingsDto dto = new RegistrationSettingsDto();
+        dto.setOpenRegistrationEnabled(false);
+        return dto;
+    }
+
     @GetMapping
-    public String index(@AuthenticationPrincipal DriveUserDetails userDetails, Model model) {
-        fillControlModel(model, userDetails, "overview", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+    public String index(@AuthenticationPrincipal DriveUserDetails userDetails,
+                        HttpServletRequest request,
+                        Model model) {
+        fillControlModel(model, userDetails, request, "overview", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
         return "control/index";
     }
 
@@ -102,8 +121,9 @@ public class ControlMvcController {
                           @RequestParam(name = "resourceQuery", required = false) String resourceQuery,
                           @RequestParam(name = "details", required = false) String details,
                           @AuthenticationPrincipal DriveUserDetails userDetails,
+                          HttpServletRequest request,
                           Model model) {
-        fillControlModel(model, userDetails, section, page, size, sort, createdDate, actorLogin, actionCode, resourceQuery, details);
+        fillControlModel(model, userDetails, request, section, page, size, sort, createdDate, actorLogin, actionCode, resourceQuery, details);
         return "control/index";
     }
 
@@ -129,22 +149,23 @@ public class ControlMvcController {
                              BindingResult bindingResult,
                              @RequestParam(name = "returnSection", required = false) String returnSection,
                              @AuthenticationPrincipal DriveUserDetails userDetails,
+                             HttpServletRequest request,
                              Model model,
                              RedirectAttributes redirectAttributes) {
         String section = normalizeSection(returnSection);
         if (bindingResult.hasErrors()) {
-            fillControlModel(model, userDetails, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             return "control/index";
         }
         String error = userService.validateAdminCreate(adminUserCreateDto);
         if (error != null) {
-            fillControlModel(model, userDetails, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             model.addAttribute("userCreateError", error);
             return "control/index";
         }
         var created = userService.createByAdmin(userDetails.getUser().getId(), adminUserCreateDto);
         if (created == null) {
-            fillControlModel(model, userDetails, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             model.addAttribute("userCreateError", "Не удалось создать пользователя.");
             return "control/index";
         }
@@ -159,16 +180,17 @@ public class ControlMvcController {
                                    BindingResult bindingResult,
                                    @RequestParam(name = "returnSection", required = false) String returnSection,
                                    @AuthenticationPrincipal DriveUserDetails userDetails,
+                                   HttpServletRequest request,
                                    Model model,
                                    RedirectAttributes redirectAttributes) {
         String section = normalizeSection(returnSection);
         if (bindingResult.hasErrors()) {
-            fillControlModel(model, userDetails, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             return "control/index";
         }
         String error = userService.updateAccess(dto.getUserId(), dto.getRoleCode(), dto.getStatusCode(), dto.getStorageQuotaMb());
         if (error != null) {
-            fillControlModel(model, userDetails, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, section, DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             model.addAttribute("userAccessError", error);
             return "control/index";
         }
@@ -202,23 +224,24 @@ public class ControlMvcController {
     public String createInvite(@Valid @ModelAttribute("userInviteCreateDto") UserInviteCreateDto dto,
                                BindingResult bindingResult,
                                @AuthenticationPrincipal DriveUserDetails userDetails,
+                               HttpServletRequest request,
                                Model model,
                                RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
-            fillControlModel(model, userDetails, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             return "control/index";
         }
 
         String error = userInviteService.validateCreate(dto);
         if (error != null) {
-            fillControlModel(model, userDetails, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             model.addAttribute("inviteError", error);
             return "control/index";
         }
 
         UserInviteDto invite = userInviteService.create(userDetails.getUser().getId(), dto);
         if (invite == null) {
-            fillControlModel(model, userDetails, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
+            fillControlModel(model, userDetails, request, "registration", DEFAULT_AUDIT_PAGE, DEFAULT_AUDIT_PAGE_SIZE, "date_desc");
             model.addAttribute("inviteError", "Не удалось создать инвайт.");
             return "control/index";
         }
@@ -243,17 +266,36 @@ public class ControlMvcController {
         return "redirect:/control/registration";
     }
 
-    private void fillControlModel(Model model,
-                                  DriveUserDetails userDetails,
-                                  String section,
-                                  Integer auditPage,
-                                  Integer auditPageSize,
-                                  String auditSort) {
-        fillControlModel(model, userDetails, section, auditPage, auditPageSize, auditSort, null, null, null, null, null);
+    @PostMapping("registration/mode")
+    public String updateRegistrationMode(@ModelAttribute("registrationSettingsDto") RegistrationSettingsDto dto,
+                                         @AuthenticationPrincipal DriveUserDetails userDetails,
+                                         RedirectAttributes redirectAttributes) {
+        boolean enabled = Boolean.TRUE.equals(dto.getOpenRegistrationEnabled());
+        boolean saved = appSettingService.updateOpenRegistrationEnabled(enabled, userDetails.getUser().getId());
+        if (!saved) {
+            redirectAttributes.addFlashAttribute("inviteError", "Не удалось обновить режим регистрации.");
+        } else {
+            auditLogService.log(userDetails.getUser().getId(), "ADMIN_UPDATE_REGISTRATION_MODE", "SETTING", null,
+                    enabled ? "Открытая регистрация включена" : "Открытая регистрация отключена");
+            redirectAttributes.addFlashAttribute("inviteSuccess",
+                    enabled ? "Открытая регистрация включена." : "Открытая регистрация отключена.");
+        }
+        return "redirect:/control/registration";
     }
 
     private void fillControlModel(Model model,
                                   DriveUserDetails userDetails,
+                                  HttpServletRequest request,
+                                  String section,
+                                  Integer auditPage,
+                                  Integer auditPageSize,
+                                  String auditSort) {
+        fillControlModel(model, userDetails, request, section, auditPage, auditPageSize, auditSort, null, null, null, null, null);
+    }
+
+    private void fillControlModel(Model model,
+                                  DriveUserDetails userDetails,
+                                  HttpServletRequest request,
                                   String section,
                                   Integer auditPage,
                                   Integer auditPageSize,
@@ -302,9 +344,14 @@ public class ControlMvcController {
         long adminsCount = users.stream().filter(user -> "ROLE_ADMIN".equalsIgnoreCase(user.getRoleCode())).count();
         long filesCount = fileService.countAll();
         long filesSizeBytes = fileService.sumSizeAll();
+        long invitesCount = userInviteService.countAll();
+        long activeInvitesCount = userInviteService.countActive();
+        long usedInvitesCount = userInviteService.countUsed();
+        boolean openRegistrationEnabled = appSettingService.isOpenRegistrationEnabled();
 
-        model.addAttribute("title", "AGTY/DRIVE Control");
+        model.addAttribute("pageTitle", "Управление");
         model.addAttribute("currentUser", userDetails.getUser());
+        model.addAttribute("inviteBaseUrl", buildInviteBaseUrl(request));
         model.addAttribute("activeSection", activeSection);
         model.addAttribute("sectionTitle", sectionTitle(activeSection));
         model.addAttribute("sectionDescription", sectionDescription(activeSection));
@@ -316,6 +363,10 @@ public class ControlMvcController {
         model.addAttribute("users", users);
         model.addAttribute("filesCount", filesCount);
         model.addAttribute("filesSizeTitle", AgtyUtils.filesizeToTitle(filesSizeBytes, "ru"));
+        model.addAttribute("invitesCount", invitesCount);
+        model.addAttribute("activeInvitesCount", activeInvitesCount);
+        model.addAttribute("usedInvitesCount", usedInvitesCount);
+        model.addAttribute("openRegistrationEnabled", openRegistrationEnabled);
         model.addAttribute("usersRolesDictionary", usersRoleDictionaryService.findAll());
         model.addAttribute("usersStatusesDictionary", usersStatusDictionaryService.findAll());
         model.addAttribute("registrationInvites", invites);
@@ -333,6 +384,10 @@ public class ControlMvcController {
         model.addAttribute("auditActionCode", normalizedAuditActionCode);
         model.addAttribute("auditResourceQuery", normalizedAuditResourceQuery);
         model.addAttribute("auditDetails", normalizedAuditDetails);
+    }
+
+    private String buildInviteBaseUrl(HttpServletRequest request) {
+        return applicationInfo.resolveBaseUri(request);
     }
 
     private String normalizeSection(String value) {

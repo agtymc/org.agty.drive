@@ -6,6 +6,8 @@ import org.agty.utils.AgtyUtils;
 
 @Data
 public class FileItemDto {
+    private static final long TEXT_PREVIEW_MAX_BYTES = 512L * 1024L;
+
     private Long id;
     private Long ownerId;
     private Long folderId;
@@ -20,6 +22,7 @@ public class FileItemDto {
     private String previewStatus;
     private Boolean isImage;
     private Boolean isVideo;
+    private String expiresAt;
     private String createdAt;
     private String updatedAt;
     private String deletedAt;
@@ -37,6 +40,17 @@ public class FileItemDto {
 
     public String getUpdatedAtTitle() {
         return convertDateTime(updatedAt);
+    }
+
+    public String getExpiresAtTitle() {
+        if (expiresAt == null || expiresAt.isBlank()) {
+            return "Без срока";
+        }
+        return convertDateTime(expiresAt);
+    }
+
+    public String getExpiresAtInputValue() {
+        return AppTime.formatForDateTimeInput(expiresAt);
     }
 
     public String getIconType() {
@@ -78,7 +92,6 @@ public class FileItemDto {
                 || "gif".equals(ext)
                 || "webp".equals(ext)
                 || "bmp".equals(ext)
-                || "svg".equals(ext)
                 || "ico".equals(ext)
                 || "tif".equals(ext)
                 || "tiff".equals(ext);
@@ -119,6 +132,49 @@ public class FileItemDto {
                 || "ogg".equals(ext)
                 || "m4a".equals(ext)
                 || "aac".equals(ext);
+    }
+
+    public boolean isTextPreview() {
+        String mime = mimeType == null ? "" : mimeType.toLowerCase();
+        if (mime.startsWith("text/")) {
+            return true;
+        }
+        String ext = extension == null ? "" : extension.toLowerCase();
+        return "txt".equals(ext)
+                || "md".equals(ext)
+                || "json".equals(ext)
+                || "xml".equals(ext)
+                || "yml".equals(ext)
+                || "yaml".equals(ext)
+                || "csv".equals(ext)
+                || "log".equals(ext)
+                || "ini".equals(ext)
+                || "conf".equals(ext)
+                || "properties".equals(ext);
+    }
+
+    public boolean isTextPreviewAllowed() {
+        return isTextPreview() && sizeBytes != null && sizeBytes <= TEXT_PREVIEW_MAX_BYTES;
+    }
+
+    public boolean isPreviewAvailable() {
+        return isImagePreview() || isVideoPreview() || isAudioPreview() || isTextPreviewAllowed();
+    }
+
+    public String getPreviewType() {
+        if (isImagePreview()) {
+            return "image";
+        }
+        if (isVideoPreview()) {
+            return "video";
+        }
+        if (isAudioPreview()) {
+            return "audio";
+        }
+        if (isTextPreviewAllowed()) {
+            return "text";
+        }
+        return null;
     }
 
     private String convertDateTime(String value) {

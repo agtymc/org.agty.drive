@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="library-content">
+    <main class="drive-content">
+        <section class="list-surface" data-upload-dropzone>
+            <div class="list-toolbar list-toolbar-secondary">
+                <div class="list-toolbar-meta-group">
+                    <a class="toolbar-chip toolbar-chip-link back-chip" th:if="${currentFolder != null and currentFolder.parentId == null}" th:href="${cabinetRoutes.sectionPath('files')}"><span class="toolbar-icon">←</span>Назад</a>
+                    <a class="toolbar-chip toolbar-chip-link back-chip" th:if="${currentFolder != null and currentFolder.parentId != null}" th:href="${cabinetRoutes.pagePath('files', currentFolder.parentId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}"><span class="toolbar-icon">←</span>Назад</a>
+                    <div class="toolbar-meta" th:text="${searchActive ? 'Найдено: ' + totalItems + ' • ' + (searchScope == 'all' ? 'весь диск' : (searchScope == 'tree' ? 'папка и поддиректории' : (searchScope == 'photos' ? 'все фото' : (searchScope == 'videos' ? 'все видео' : (searchScope == 'shared' ? 'все открытые ссылки' : 'текущая папка'))))) : 'Всего объектов: ' + totalItems}">Всего объектов: 0</div>
+                </div>
+                <div class="page-size-group">
+                    <span class="toolbar-meta">На странице</span>
+                    <a class="page-size-link" th:classappend="${pageSize == 20 ? ' active' : ''}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, 20)}">20</a>
+                    <a class="page-size-link" th:classappend="${pageSize == 50 ? ' active' : ''}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, 50)}">50</a>
+                    <a class="page-size-link" th:classappend="${pageSize == 100 ? ' active' : ''}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, 100)}">100</a>
+                </div>
+            </div>
+
+            <div class="notice-banner success" th:if="${fileSuccess}" th:text="${fileSuccess}">Файл загружен.</div>
+            <div class="notice-banner success" th:if="${folderSuccess}" th:text="${folderSuccess}">Папка создана.</div>
+            <div class="notice-banner error" th:if="${fileError}" th:text="${fileError}">Ошибка</div>
+            <div class="notice-banner error" th:if="${folderError}" th:text="${folderError}">Ошибка</div>
+            <div class="notice-banner error" th:if="${shareError}" th:text="${shareError}">Ошибка</div>
+
+            <div class="library-filter-bar" th:if="${libraryMode == 'shared'}">
+                <div class="library-filter-group">
+                    <span class="library-filter-label">Тип</span>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedTypeFilter == 'all' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, null, null, pageSize)}">Все</a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedTypeFilter == 'files' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, 'files', null, pageSize)}">Файлы <span class="library-filter-count" th:text="${sharedSummary['files']}">0</span></a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedTypeFilter == 'folders' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, 'folders', null, pageSize)}">Папки <span class="library-filter-count" th:text="${sharedSummary['folders']}">0</span></a>
+                    <span class="library-filter-divider" aria-hidden="true"></span>
+                    <span class="library-filter-label">Статус</span>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedStatusFilter == 'all' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, null, sharedTypeFilter, null, pageSize)}">Все <span class="library-filter-count" th:text="${sharedSummary['all']}">0</span></a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedStatusFilter == 'active' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, 'active', sharedTypeFilter, null, pageSize)}">Активны <span class="library-filter-count" th:text="${sharedSummary['active']}">0</span></a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedStatusFilter == 'expiring' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, 'expiring', sharedTypeFilter, null, pageSize)}">Скоро истекут <span class="library-filter-count" th:text="${sharedSummary['expiring']}">0</span></a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedStatusFilter == 'expired' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, 'expired', sharedTypeFilter, null, pageSize)}">Просрочены <span class="library-filter-count" th:text="${sharedSummary['expired']}">0</span></a>
+                    <a class="toolbar-chip toolbar-chip-link" th:classappend="${sharedStatusFilter == 'without_expiry' ? ' active' : ''}" th:href="${cabinetRoutes.pagePath('shared', null, viewMode, sortMode, searchQuery, searchScope, 'without_expiry', sharedTypeFilter, null, pageSize)}">Без срока <span class="library-filter-count" th:text="${sharedSummary['without_expiry']}">0</span></a>
+                </div>
+            </div>
+
+            <div class="bulk-toolbar" th:if="${not #lists.isEmpty(files) or not #lists.isEmpty(folders)}">
+                <div class="bulk-toolbar-copy">Выбранные объекты</div>
+                <div class="row-actions">
+                    <button type="button" class="inline-link" data-bulk-move-trigger>Переместить</button>
+                    <button type="button" class="inline-link inline-link-danger" data-bulk-delete-trigger>Удалить</button>
+                </div>
+            </div>
+
+            <form method="post" th:action="@{/cabinet/items/bulk/delete}" data-bulk-delete-form>
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" name="selectedFileIds" value="" data-bulk-file-ids>
+                <input type="hidden" name="selectedFolderIds" value="" data-bulk-folder-ids>
+            </form>
+
+            <div class="empty-state empty-state-rich" th:if="${#lists.isEmpty(files) and #lists.isEmpty(folders) and #lists.isEmpty(sharedItems)}">
+                <div class="empty-state-badge" th:text="${libraryMode == 'shared' ? 'SHARED' : (libraryMode == 'photos' ? 'PHOTO' : (libraryMode == 'videos' ? 'VIDEO' : 'DRIVE'))}">DRIVE</div>
+                <div class="empty-state-title" th:text="${searchActive ? 'Ничего не найдено' : (libraryMode == 'shared' ? 'Ссылок пока нет' : (libraryMode == 'photos' ? 'Фото пока нет' : (libraryMode == 'videos' ? 'Видео пока нет' : (libraryMode == 'files' and !diskEmpty ? 'Папка пока пуста' : 'Диск пока пуст'))))}">Диск пока пуст</div>
+                <div class="empty-state-copy" th:text="${searchActive ? 'Попробуйте изменить запрос или область поиска.' : (libraryMode == 'shared' ? 'Создайте публичную ссылку для файла или папки, и она появится здесь.' : (libraryMode == 'photos' ? 'Загрузите изображения, чтобы собрать фотоленту без переходов по папкам.' : (libraryMode == 'videos' ? 'Загрузите видео, и они появятся в отдельной библиотеке.' : (libraryMode == 'files' and !diskEmpty ? 'Загрузите файлы или создайте подпапку внутри этой директории.' : 'Создайте папку или загрузите первый файл, чтобы начать работу.'))))}">Создайте папку или загрузите первый файл, чтобы начать работу.</div>
+                <div class="row-actions empty-state-actions">
+                    <a class="inline-link" th:if="${searchActive}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, null, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сбросить поиск</a>
+                    <button class="inline-link" type="button" th:if="${!searchActive and libraryMode != 'shared'}" data-open-modal="upload-modal">Загрузить</button>
+                    <button class="inline-link" type="button" th:if="${!searchActive}" data-open-modal="search-modal">Искать</button>
+                </div>
+            </div>
+
+            <table class="file-table file-table-shared" th:if="${not #lists.isEmpty(sharedItems) and libraryMode == 'shared'}">
+                <colgroup>
+                    <col class="col-name">
+                    <col class="col-date">
+                    <col class="col-size">
+                    <col class="col-action">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th>Объект</th>
+                    <th>Срок</th>
+                    <th>Права</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="item : ${sharedItems}">
+                    <td>
+                        <div class="entry-cell">
+                            <div class="entry-icon" th:classappend="${item.shareLink.resourceType == 'FOLDER' ? ' folder' : ' file'}">
+                                <span th:if="${item.shareLink.resourceType != 'FOLDER'}">FILE</span>
+                            </div>
+                            <div class="entry-main">
+                                <div class="entry-title" th:text="${item.resourceName}">Файл</div>
+                                <div class="entry-note" th:text="${item.resourceTypeTitle + ' • ' + item.shareLink.title}">Файл • Публичная ссылка</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="shared-status-cell">
+                            <span class="status-pill" th:classappend="${' ' + item.statusCode}" th:text="${item.statusTitle}">Активна</span>
+                            <div class="entry-note" th:text="${item.shareLink.expiresAtTitle}">Без срока</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="shared-rights-cell">
+                            <div th:text="${item.shareLink.rightsTitle}">Просмотр и скачивание</div>
+                            <div class="entry-note" th:text="${item.isFolder() ? 'Открытая папка' : (item.previewAvailable ? 'Есть preview' : 'Без preview')}">Есть preview</div>
+                        </div>
+                    </td>
+                    <td class="shared-actions-cell">
+                        <div class="row-actions shared-row-actions">
+                            <a class="inline-link" th:href="@{'/s/' + ${item.shareLink.token}}" target="_blank" rel="noopener">Открыть</a>
+                            <button type="button" class="inline-link" th:attr="data-copy-text=${'/s/' + item.shareLink.token}">Копировать</button>
+                            <form method="post" th:action="@{/cabinet/shares/delete}" class="inline-form">
+                                <input type="hidden" name="section" value="shared">
+                                <input type="hidden" name="scope" value="shared">
+                                <input type="hidden" name="sort" th:value="${sortMode}">
+                                <input type="hidden" name="q" th:value="${searchQuery}">
+                                <input type="hidden" name="size" th:value="${pageSize}">
+                                <input type="hidden" name="shareStatus" th:value="${sharedStatusFilter}">
+                                <input type="hidden" name="shareType" th:value="${sharedTypeFilter}">
+                                <input type="hidden" name="resourceType" th:value="${item.shareLink.resourceType}">
+                                <input type="hidden" name="resourceId" th:value="${item.shareLink.resourceId}">
+                                <button type="submit" class="inline-link inline-link-danger" data-inline-confirm="Отключить открытую ссылку?">Выкл</button>
+                            </form>
+                            <button type="button" class="inline-link" data-open-modal="share-modal" th:attr="data-share-resource-type=${item.shareLink.resourceType},data-share-resource-id=${item.shareLink.resourceId},data-share-item-name=${item.resourceName},data-share-item-label=${item.resourceTypeTitle},data-share-title=${item.shareLink.title},data-share-url=${'/s/' + item.shareLink.token},data-share-expires=${item.shareLink.expiresAtTitle},data-share-unlimited=${item.shareLink.withoutExpiry},data-share-preview=${item.shareLink.allowPreview},data-share-download=${item.shareLink.allowDownload}" aria-label="Настроить ссылку" title="Настроить ссылку"><span class="action-icon">⚙</span></button>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <table class="file-table" th:if="${(not #lists.isEmpty(files) or not #lists.isEmpty(folders)) and viewMode == 'list' and libraryMode != 'shared'}">
+                <colgroup>
+                    <col class="col-select">
+                    <col class="col-share">
+                    <col class="col-name">
+                    <col class="col-date">
+                    <col class="col-size">
+                    <col class="col-action">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th><input type="checkbox" data-bulk-toggle-all aria-label="Выбрать все"></th>
+                    <th></th>
+                    <th>Имя</th>
+                    <th>Дата</th>
+                    <th>Размер</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="folder : ${folders}" th:with="folderShare=${folderShareLinksByFolderId[folder.id]},collaborativeShare=${collaborativeSharesByFolderId[folder.id]}" class="folder-row" th:attr="data-folder-row=true,data-href=${cabinetRoutes.pagePath('files', folder.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">
+                    <td class="select-cell"><input type="checkbox" class="bulk-select-input" data-bulk-select-item data-bulk-item-type="FOLDER" th:attr="data-bulk-item-id=${folder.id}" aria-label="Выбрать папку"></td>
+                    <td class="share-indicator-cell">
+                        <div class="share-indicators">
+                            <span class="share-indicator" th:if="${folderShare != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span>
+                            <span class="share-indicator collaborative-indicator" th:if="${collaborativeShare != null}" title="Есть совместный доступ" aria-label="Есть совместный доступ">👥</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="entry-cell">
+                            <div class="entry-icon folder"></div>
+                            <div class="entry-main">
+                                <a class="entry-title entry-link" th:href="${cabinetRoutes.pagePath('files', folder.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}" th:text="${folder.name}">Документы</a>
+                                <div class="entry-note" th:if="${folder.description != null and !folder.description.isBlank()}" th:text="${folder.description}">Описание</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td th:text="${folder.createdAtTitle}">24.07.2026 12:00</td>
+                    <td>Папка</td>
+                    <td>
+                        <div class="row-actions">
+                            <button type="button" class="inline-link table-action-button" data-open-modal="item-actions-modal" title="Настройки доступа" aria-label="Настройки доступа" th:attr="data-item-resource-type='FOLDER',data-item-resource-id=${folder.id},data-item-name=${folder.name},data-item-label='Папка',data-item-current-parent-id=${folder.parentId},data-item-path-key=${folder.pathKey},data-item-created-at=${folder.createdAtTitle},data-item-updated-at=${folder.updatedAtTitle},data-item-expires-at=${folder.expiresAtTitle},data-item-expires-input=${folder.expiresAtInputValue},data-item-expires-unlimited=${folder.expiresAt == null || folder.expiresAt.isBlank()},data-share-resource-type='FOLDER',data-share-resource-id=${folder.id},data-share-item-name=${folder.name},data-share-item-label='Папка',data-share-title=${folderShare != null ? folderShare.title : ''},data-share-url=${folderShare != null ? '/s/' + folderShare.token : ''},data-share-expires=${folderShare != null ? folderShare.expiresAtTitle : 'Без срока'},data-share-unlimited=${folderShare != null and folderShare.withoutExpiry},data-share-preview=${folderShare != null and folderShare.allowPreview},data-share-download=${folderShare != null and folderShare.allowDownload},data-collab-folder-id=${folder.id},data-collab-folder-name=${folder.name},data-collab-logins=${collaborativeShare != null ? collaborativeShare.recipientLogins : ''},data-collab-write=${collaborativeShare != null ? (collaborativeShare.allowWrite ? 'true' : 'false') : 'false'},data-collab-delete=${collaborativeShare != null ? (collaborativeShare.allowDelete ? 'true' : 'false') : 'false'},data-collab-password-protected=${collaborativeShare != null ? (collaborativeShare.passwordProtected ? 'true' : 'false') : 'false'}"><span class="action-icon">⚙</span></button>
+                            <a class="inline-link table-action-button" th:href="@{/cabinet/folders/{id}/download(id=${folder.id})}" title="Скачать архив" aria-label="Скачать архив"><span class="action-download-icon" aria-hidden="true"></span></a>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:each="file : ${files}" th:with="share=${shareLinksByFileId[file.id]},previewType=${file.previewType},previewAvailable=${file.previewAvailable}">
+                    <td class="select-cell"><input type="checkbox" class="bulk-select-input" data-bulk-select-item data-bulk-item-type="FILE" th:attr="data-bulk-item-id=${file.id}" aria-label="Выбрать файл"></td>
+                    <td class="share-indicator-cell"><span class="share-indicator" th:if="${share != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span></td>
+                    <td>
+                        <div class="entry-cell">
+                            <button th:if="${file.thumbnailPreviewReady and libraryMode != 'files'}" type="button" class="entry-thumb-link entry-preview-trigger" data-preview-trigger th:attr="data-preview-title=${file.originalFilename},data-preview-type='image',data-preview-src=@{/cabinet/files/{id}/content(id=${file.id})},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><img class="entry-thumb-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy"></button>
+                            <a th:if="${file.thumbnailPreviewReady and libraryMode == 'files'}" class="entry-thumb-link" th:href="@{/cabinet/files/{id}/content(id=${file.id})}" target="_blank" rel="noopener"><img class="entry-thumb-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy"></a>
+                            <button th:if="${!file.thumbnailPreviewReady and file.videoPreview and libraryMode != 'files'}" type="button" class="entry-video-icon entry-preview-trigger" data-preview-trigger th:attr="data-preview-title=${file.originalFilename},data-preview-type='video',data-preview-src=@{/cabinet/files/{id}/content(id=${file.id})},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><span class="entry-video-play"></span></button>
+                            <div th:if="${!file.thumbnailPreviewReady and file.videoPreview and libraryMode == 'files'}" class="entry-video-icon" aria-hidden="true"><span class="entry-video-play"></span></div>
+                            <div th:if="${!file.thumbnailPreviewReady and !file.videoPreview}" class="entry-icon" th:classappend="${' ' + file.iconType}"><span th:text="${file.extensionTitle}">FILE</span></div>
+                            <div class="entry-main">
+                                <div class="entry-title" th:text="${file.originalFilename}">example.pdf</div>
+                                <div class="entry-note" th:if="${file.description != null and !file.description.isBlank()}" th:text="${file.description}">Описание</div>
+                                <div class="entry-note entry-note-expiry" th:if="${file.expiresAt != null and !file.expiresAt.isBlank()}">
+                                    <span class="entry-note-icon" aria-hidden="true"></span>
+                                    <span th:text="${file.expiresAtTitle}">30.07.2026 12:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td th:text="${file.createdAtTitle}">24.07.2026 12:00</td>
+                    <td th:text="${file.sizeTitle}">0 Б</td>
+                    <td>
+                        <div class="row-actions">
+                            <button type="button" class="inline-link table-action-button" data-open-modal="item-actions-modal" title="Настройки доступа" aria-label="Настройки доступа" th:attr="data-item-resource-type='FILE',data-item-resource-id=${file.id},data-item-name=${file.originalFilename},data-item-label='Файл',data-item-current-parent-id=${file.folderId},data-item-path-key='',data-item-created-at=${file.createdAtTitle},data-item-updated-at=${file.updatedAtTitle},data-item-expires-at=${file.expiresAtTitle},data-item-expires-input=${file.expiresAtInputValue},data-item-expires-unlimited=${file.expiresAt == null || file.expiresAt.isBlank()},data-share-resource-type='FILE',data-share-resource-id=${file.id},data-share-item-name=${file.originalFilename},data-share-item-label='Файл',data-share-title=${share != null ? share.title : ''},data-share-url=${share != null ? '/s/' + share.token : ''},data-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-share-unlimited=${share != null and share.withoutExpiry},data-share-preview=${share != null and share.allowPreview},data-share-download=${share != null and share.allowDownload}"><span class="action-icon">⚙</span></button>
+                            <button type="button" class="inline-link preview-eye-button table-action-button" th:if="${previewAvailable}" data-preview-trigger title="Просмотр" aria-label="Просмотр" th:attr="data-preview-title=${file.originalFilename},data-preview-type=${previewType},data-preview-src=${previewType == 'text' ? '/cabinet/files/' + file.id + '/preview-text' : (previewType == 'audio' ? '/cabinet/files/' + file.id + '/preview-audio' : '/cabinet/files/' + file.id + '/content')},data-preview-mime-type=${file.mimeType},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                            <button type="button" class="inline-link preview-eye-button table-action-button" th:if="${!previewAvailable}" title="Просмотр недоступен" aria-label="Просмотр недоступен" disabled><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                            <a class="inline-link table-action-button" th:href="@{/cabinet/files/{id}/download(id=${file.id})}" title="Скачать файл" aria-label="Скачать файл"><span class="action-download-icon" aria-hidden="true"></span></a>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="drive-grid" th:if="${(not #lists.isEmpty(files) or not #lists.isEmpty(folders)) and viewMode == 'grid' and libraryMode != 'shared'}">
+                <article class="drive-grid-card folder-card" th:each="folder : ${folders}" th:with="folderShare=${folderShareLinksByFolderId[folder.id]},collaborativeShare=${collaborativeSharesByFolderId[folder.id]}">
+                    <div class="grid-card-top">
+                        <input type="checkbox" class="bulk-select-input" data-bulk-select-item data-bulk-item-type="FOLDER" th:attr="data-bulk-item-id=${folder.id}" aria-label="Выбрать папку">
+                        <div class="share-indicators">
+                            <span class="share-indicator" th:if="${folderShare != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span>
+                            <span class="share-indicator collaborative-indicator" th:if="${collaborativeShare != null}" title="Есть совместный доступ" aria-label="Есть совместный доступ">👥</span>
+                        </div>
+                    </div>
+                    <a class="grid-card-preview" th:href="${cabinetRoutes.pagePath('files', folder.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}"><div class="entry-icon folder grid-folder-icon"></div></a>
+                    <div class="grid-card-main">
+                        <a class="grid-card-title" th:href="${cabinetRoutes.pagePath('files', folder.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}" th:text="${folder.name}">Документы</a>
+                        <div class="grid-card-meta" th:text="${folder.createdAtTitle}">24.07.2026 12:00</div>
+                    </div>
+                    <div class="row-actions">
+                        <button type="button" class="inline-link" data-open-modal="item-actions-modal" title="Настройки доступа" aria-label="Настройки доступа" th:attr="data-item-resource-type='FOLDER',data-item-resource-id=${folder.id},data-item-name=${folder.name},data-item-label='Папка',data-item-current-parent-id=${folder.parentId},data-item-path-key=${folder.pathKey},data-item-created-at=${folder.createdAtTitle},data-item-updated-at=${folder.updatedAtTitle},data-item-expires-at=${folder.expiresAtTitle},data-item-expires-input=${folder.expiresAtInputValue},data-item-expires-unlimited=${folder.expiresAt == null || folder.expiresAt.isBlank()},data-share-resource-type='FOLDER',data-share-resource-id=${folder.id},data-share-item-name=${folder.name},data-share-item-label='Папка',data-share-title=${folderShare != null ? folderShare.title : ''},data-share-url=${folderShare != null ? '/s/' + folderShare.token : ''},data-share-expires=${folderShare != null ? folderShare.expiresAtTitle : 'Без срока'},data-share-unlimited=${folderShare != null and folderShare.withoutExpiry},data-share-preview=${folderShare != null and folderShare.allowPreview},data-share-download=${folderShare != null and folderShare.allowDownload},data-collab-folder-id=${folder.id},data-collab-folder-name=${folder.name},data-collab-logins=${collaborativeShare != null ? collaborativeShare.recipientLogins : ''},data-collab-write=${collaborativeShare != null ? (collaborativeShare.allowWrite ? 'true' : 'false') : 'false'},data-collab-delete=${collaborativeShare != null ? (collaborativeShare.allowDelete ? 'true' : 'false') : 'false'},data-collab-password-protected=${collaborativeShare != null ? (collaborativeShare.passwordProtected ? 'true' : 'false') : 'false'}"><span class="action-icon">⚙</span></button>
+                        <a class="inline-link" th:href="@{/cabinet/folders/{id}/download(id=${folder.id})}">Архив</a>
+                    </div>
+                </article>
+
+                <article class="drive-grid-card file-card" th:each="file : ${files}" th:with="share=${shareLinksByFileId[file.id]},previewType=${file.previewType},previewAvailable=${file.previewAvailable}">
+                    <div class="grid-card-top">
+                        <input type="checkbox" class="bulk-select-input" data-bulk-select-item data-bulk-item-type="FILE" th:attr="data-bulk-item-id=${file.id}" aria-label="Выбрать файл">
+                        <span class="share-indicator" th:if="${share != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span>
+                    </div>
+                    <button th:if="${file.thumbnailPreviewReady and libraryMode != 'files'}" type="button" class="grid-card-preview grid-card-preview-button" data-preview-trigger th:attr="data-preview-title=${file.originalFilename},data-preview-type='image',data-preview-src=@{/cabinet/files/{id}/content(id=${file.id})},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><img class="grid-card-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy"></button>
+                    <a th:if="${file.thumbnailPreviewReady and libraryMode == 'files'}" class="grid-card-preview" th:href="@{/cabinet/files/{id}/content(id=${file.id})}" target="_blank" rel="noopener"><img class="grid-card-image" th:src="@{/cabinet/files/{id}/thumbnail(id=${file.id})}" th:alt="${file.originalFilename}" loading="lazy"></a>
+                    <button th:if="${!file.thumbnailPreviewReady and file.videoPreview and libraryMode != 'files'}" type="button" class="grid-card-preview grid-card-preview-fallback grid-card-preview-button" data-preview-trigger th:attr="data-preview-title=${file.originalFilename},data-preview-type='video',data-preview-src=@{/cabinet/files/{id}/content(id=${file.id})},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><div class="entry-video-icon grid-video-icon" aria-hidden="true"><span class="entry-video-play"></span></div></button>
+                    <div th:if="${(!file.thumbnailPreviewReady and !file.videoPreview) or (!file.thumbnailPreviewReady and file.videoPreview and libraryMode == 'files')}" class="grid-card-preview grid-card-preview-fallback">
+                        <div th:if="${file.videoPreview}" class="entry-video-icon grid-video-icon" aria-hidden="true"><span class="entry-video-play"></span></div>
+                        <div th:if="${!file.videoPreview}" class="entry-icon grid-file-icon" th:classappend="${' ' + file.iconType}"><span th:text="${file.extensionTitle}">FILE</span></div>
+                    </div>
+                    <div class="grid-card-main">
+                        <div class="grid-card-title" th:text="${file.originalFilename}">example.pdf</div>
+                        <div class="grid-card-meta" th:text="${file.sizeTitle + ' • ' + file.createdAtTitle}">0 Б</div>
+                    </div>
+                    <div class="row-actions">
+                        <button type="button" class="inline-link preview-eye-button" th:if="${previewAvailable}" data-preview-trigger title="Просмотр" aria-label="Просмотр" th:attr="data-preview-title=${file.originalFilename},data-preview-type=${previewType},data-preview-src=${previewType == 'text' ? '/cabinet/files/' + file.id + '/preview-text' : (previewType == 'audio' ? '/cabinet/files/' + file.id + '/preview-audio' : '/cabinet/files/' + file.id + '/content')},data-preview-mime-type=${file.mimeType},data-preview-download-url=@{/cabinet/files/{id}/download(id=${file.id})},data-preview-share-resource-type='FILE',data-preview-share-resource-id=${file.id},data-preview-share-item-name=${file.originalFilename},data-preview-share-item-label='Файл',data-preview-share-title=${share != null ? share.title : ''},data-preview-share-url=${share != null ? '/s/' + share.token : ''},data-preview-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-preview-share-unlimited=${share != null and share.withoutExpiry},data-preview-share-preview=${share != null and share.allowPreview},data-preview-share-download=${share != null and share.allowDownload}"><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                        <button type="button" class="inline-link preview-eye-button" th:if="${!previewAvailable}" title="Просмотр недоступен" aria-label="Просмотр недоступен" disabled><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                        <button type="button" class="inline-link" data-open-modal="item-actions-modal" title="Настройки доступа" aria-label="Настройки доступа" th:attr="data-item-resource-type='FILE',data-item-resource-id=${file.id},data-item-name=${file.originalFilename},data-item-label='Файл',data-item-current-parent-id=${file.folderId},data-item-path-key='',data-item-created-at=${file.createdAtTitle},data-item-updated-at=${file.updatedAtTitle},data-item-expires-at=${file.expiresAtTitle},data-item-expires-input=${file.expiresAtInputValue},data-item-expires-unlimited=${file.expiresAt == null || file.expiresAt.isBlank()},data-share-resource-type='FILE',data-share-resource-id=${file.id},data-share-item-name=${file.originalFilename},data-share-item-label='Файл',data-share-title=${share != null ? share.title : ''},data-share-url=${share != null ? '/s/' + share.token : ''},data-share-expires=${share != null ? share.expiresAtTitle : 'Без срока'},data-share-unlimited=${share != null and share.withoutExpiry},data-share-preview=${share != null and share.allowPreview},data-share-download=${share != null and share.allowDownload}"><span class="action-icon">⚙</span></button>
+                        <a class="inline-link" th:href="@{/cabinet/files/{id}/download(id=${file.id})}">Скачать</a>
+                    </div>
+                </article>
+            </div>
+
+            <div class="pagination-bar" th:if="${totalPages > 1}">
+                <a class="toolbar-chip toolbar-chip-link" th:if="${currentPage > 1}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, currentPage - 1, pageSize)}">← Назад</a>
+                <div class="pagination-copy" th:text="${'Страница ' + currentPage + ' из ' + totalPages}">Страница 1 из 1</div>
+                <a class="toolbar-chip toolbar-chip-link" th:if="${currentPage < totalPages}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, currentPage + 1, pageSize)}">Дальше →</a>
+            </div>
+        </section>
+    </main>
+</th:block>
+</body>
+</html>

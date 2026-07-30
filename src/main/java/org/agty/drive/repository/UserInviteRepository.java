@@ -5,6 +5,7 @@ import org.agty.agtysql.interfaces.SqlRow;
 import org.agty.drive.converters.UserInviteConverter;
 import org.agty.drive.dao.AgtySQLPool;
 import org.agty.drive.dao.ConnectionPool;
+import org.agty.drive.config.AppTime;
 import org.agty.drive.dto.UserInviteDto;
 import org.agty.drive.entity.AgdrvUserInvite;
 import org.slf4j.Logger;
@@ -63,10 +64,110 @@ public class UserInviteRepository {
         return result;
     }
 
+    public boolean existsActiveByLogin(String login, Long excludeId) {
+        if (login == null || login.isBlank()) {
+            return false;
+        }
+        String excludeCondition = excludeId == null ? "" : " AND i.id <> %d".formatted(excludeId);
+        String query = """
+                SELECT COUNT(*) AS total
+                FROM public.agdrv_user_invites i
+                WHERE lower(i.login) = lower('%s')
+                  AND i.is_enabled = TRUE
+                  AND i.used_at IS NULL
+                %s
+                """.formatted(login.trim().replace("'", "''"), excludeCondition);
+        return countByQuery(query) > 0;
+    }
+
+    public boolean existsActiveByEmail(String email, Long excludeId) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        String excludeCondition = excludeId == null ? "" : " AND i.id <> %d".formatted(excludeId);
+        String query = """
+                SELECT COUNT(*) AS total
+                FROM public.agdrv_user_invites i
+                WHERE lower(i.email) = lower('%s')
+                  AND i.is_enabled = TRUE
+                  AND i.used_at IS NULL
+                %s
+                """.formatted(email.trim().replace("'", "''"), excludeCondition);
+        return countByQuery(query) > 0;
+    }
+
+    public long countAll() {
+        return countByQuery("SELECT COUNT(*) AS total FROM public.agdrv_user_invites");
+    }
+
+    public long countActive() {
+        return countByQuery("""
+                SELECT COUNT(*) AS total
+                FROM public.agdrv_user_invites
+                WHERE is_enabled = TRUE
+                  AND used_at IS NULL
+                """);
+    }
+
+    public long countUsed() {
+        return countByQuery("""
+                SELECT COUNT(*) AS total
+                FROM public.agdrv_user_invites
+                WHERE used_at IS NOT NULL
+                """);
+    }
+
+    public boolean disable(Long inviteId) {
+        if (inviteId == null) {
+            return false;
+        }
+        String query = """
+                UPDATE public.agdrv_user_invites
+                SET is_enabled = FALSE,
+                    updated_at = '%s'
+                WHERE id = %d
+                """.formatted(AppTime.nowForDatabase(), inviteId);
+        return executeUpdate(query);
+    }
+
+    public boolean markUsed(Long inviteId, Long invitedUserId) {
+        if (inviteId == null || invitedUserId == null) {
+            return false;
+        }
+        String now = AppTime.nowForDatabase();
+        String query = """
+                UPDATE public.agdrv_user_invites
+                SET is_enabled = FALSE,
+                    used_at = '%s',
+                    invited_user_id = %d,
+                    updated_at = '%s'
+                WHERE id = %d
+                """.formatted(now, invitedUserId, now, inviteId);
+        return executeUpdate(query);
+    }
+
     private UserInviteDto fetchOne(String query) {
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
             SqlRow row = sql.sql().fetch(query);
             return row == null ? null : UserInviteConverter.rowToDto(row);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private long countByQuery(String query) {
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row = sql.sql().fetch(query);
+            Long total = row == null ? null : row.getLong("total");
+            return total == null ? 0L : total;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean executeUpdate(String query) {
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            return sql.sql().executeUpdate(query) > 0;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

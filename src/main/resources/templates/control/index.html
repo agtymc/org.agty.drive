@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${title}">AGTY/DRIVE Control</title>
+    <title th:text="${applicationInfo.pageTitle(pageTitle)}">Управление :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
     <link rel="stylesheet" href="/css/app.css">
 </head>
 <body data-theme="dark">
 <div class="admin-shell">
     <aside class="admin-sidebar">
         <div class="admin-sidebar-head">
-            <div class="hero-kicker">AGTY/DRIVE</div>
+            <div class="hero-kicker" th:text="${applicationTitle}">AGTY/DRIVE</div>
             <div class="admin-sidebar-title">Управление</div>
             <div class="admin-sidebar-copy">Полная административная зона с отдельными разделами и управлением системой.</div>
         </div>
@@ -107,6 +108,33 @@
             <div class="panel-head">
                 <h2>Инвайты на регистрацию</h2>
             </div>
+            <form class="folder-form admin-create-form" method="post" th:action="@{/control/registration/mode}" th:object="${registrationSettingsDto}" style="margin-bottom:24px;">
+                <div class="info-list" style="margin-bottom:16px;">
+                    <div class="info-row">
+                        <span>Режим регистрации</span>
+                        <strong th:text="${openRegistrationEnabled ? 'Открытая регистрация включена' : 'Только администратор и инвайты'}">Только администратор и инвайты</strong>
+                    </div>
+                </div>
+                <label style="display:flex; gap:10px; align-items:center; margin-bottom:16px;">
+                    <input type="checkbox" th:field="*{openRegistrationEnabled}">
+                    <span>Разрешить открытую регистрацию через `/register`</span>
+                </label>
+                <button type="submit">Сохранить режим регистрации</button>
+            </form>
+            <div class="info-list" style="margin-bottom:20px;">
+                <div class="info-row">
+                    <span>Всего инвайтов</span>
+                    <strong th:text="${invitesCount}">0</strong>
+                </div>
+                <div class="info-row">
+                    <span>Активные</span>
+                    <strong th:text="${activeInvitesCount}">0</strong>
+                </div>
+                <div class="info-row">
+                    <span>Использованные</span>
+                    <strong th:text="${usedInvitesCount}">0</strong>
+                </div>
+            </div>
             <form class="folder-form admin-create-form" method="post" th:action="@{/control/registration/invites/create}" th:object="${userInviteCreateDto}">
                 <div class="control-form-grid">
                     <label>
@@ -153,6 +181,7 @@
                         <th>Логин</th>
                         <th>E-mail</th>
                         <th>Роль</th>
+                        <th>Создан</th>
                         <th>Срок</th>
                         <th>Ссылка</th>
                         <th>Статус</th>
@@ -165,8 +194,11 @@
                         <td th:text="${invite.login}">user</td>
                         <td th:text="${invite.email != null ? invite.email : '—'}">—</td>
                         <td th:text="${invite.roleTitle != null ? invite.roleTitle : invite.roleCode}">Пользователь</td>
+                        <td th:text="${invite.createdAtTitle}">29.07.2026 12:00</td>
                         <td th:text="${invite.expiresAtTitle}">Без срока</td>
-                        <td><code th:text="${invite.inviteUrl}">/invite/token</code></td>
+                        <td>
+                            <code th:text="${inviteBaseUrl + invite.inviteUrl}">http://localhost:8080/invite/token</code>
+                        </td>
                         <td th:text="${invite.usedAt != null ? 'Использован' : (invite.isEnabled ? 'Активен' : 'Отключен')}">Активен</td>
                         <td>
                             <form method="post" th:if="${invite.usedAt == null and invite.isEnabled}" th:action="@{/control/registration/invites/{inviteId}/disable(inviteId=${invite.id})}">
@@ -176,7 +208,7 @@
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(registrationInvites)}">
-                        <td colspan="8">Инвайтов пока нет.</td>
+                        <td colspan="9">Инвайтов пока нет.</td>
                     </tr>
                     </tbody>
                 </table>
@@ -197,14 +229,10 @@
                         <span>Заблокированные пользователи</span>
                         <strong th:text="${blockedUsersCount}">0</strong>
                     </div>
-                    <div class="info-row">
-                        <span>Администраторы</span>
-                        <strong th:text="${adminsCount}">0</strong>
-                    </div>
-                    <div class="info-row">
-                        <span>Всего директорий</span>
-                        <strong th:text="${foldersCount}">0</strong>
-                    </div>
+                <div class="info-row">
+                    <span>Администраторы</span>
+                    <strong th:text="${adminsCount}">0</strong>
+                </div>
                 </div>
             </section>
 
@@ -216,6 +244,10 @@
                     <div class="info-row">
                         <span>Количество файлов</span>
                         <strong th:text="${filesCount}">0</strong>
+                    </div>
+                    <div class="info-row">
+                        <span>Всего директорий</span>
+                        <strong th:text="${foldersCount}">0</strong>
                     </div>
                     <div class="info-row">
                         <span>Общий размер</span>

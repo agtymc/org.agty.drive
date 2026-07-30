@@ -25,88 +25,29 @@ public class FileRepository {
             return result;
         }
 
-        String query = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String query = selectBase() + """
                 WHERE f.owner_id = %d
                   AND f.deleted_at IS NULL
                 ORDER BY f.created_at DESC, f.id DESC
                 """.formatted(ownerId);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
-                result.add(FileItemConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(query);
     }
 
     public List<FileItemDto> findByOwnerIdAndFolderId(Long ownerId, Long folderId) {
-        List<FileItemDto> result = new ArrayList<>();
         if (ownerId == null) {
-            return result;
+            return List.of();
         }
 
         String folderCondition = folderId == null ? "f.folder_id IS NULL" : "f.folder_id = %d".formatted(folderId);
-        String query = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String query = selectBase() + """
                 WHERE f.owner_id = %d
                   AND %s
                   AND f.deleted_at IS NULL
                 ORDER BY f.created_at DESC, f.id DESC
                 """.formatted(ownerId, folderCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
-                result.add(FileItemConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(query);
     }
 
     public List<FileItemDto> searchByOwnerId(Long ownerId,
@@ -124,13 +65,22 @@ public class FileRepository {
                 WHERE f.deleted_at IS NULL
                 """;
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(sqlQuery);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        return fetchCount(sqlQuery);
+    }
+
+    public long countByOwnerId(Long ownerId) {
+        if (ownerId == null) {
+            return 0L;
         }
+
+        String sqlQuery = """
+                SELECT COUNT(*) AS total
+                FROM public.agdrv_files f
+                WHERE f.owner_id = %d
+                  AND f.deleted_at IS NULL
+                """.formatted(ownerId);
+
+        return fetchCount(sqlQuery);
     }
 
     public long countSearchByOwnerId(Long ownerId,
@@ -154,13 +104,7 @@ public class FileRepository {
                   %s
                 """.formatted(ownerId, scopeCondition, queryCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(sqlQuery);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchCount(sqlQuery);
     }
 
     public List<FileItemDto> searchByOwnerId(Long ownerId,
@@ -171,35 +115,14 @@ public class FileRepository {
                                              String sortMode,
                                              int offset,
                                              int limit) {
-        List<FileItemDto> result = new ArrayList<>();
         if (ownerId == null || limit <= 0) {
-            return result;
+            return List.of();
         }
 
         String queryCondition = buildFileQueryCondition(query);
         String scopeCondition = buildFileScopeCondition(currentFolderId, currentFolderPath, scope);
         String orderBy = buildFileOrderBy(sortMode);
-        String sqlQuery = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String sqlQuery = selectBase() + """
                 WHERE f.owner_id = %d
                   AND f.deleted_at IS NULL
                   AND %s
@@ -209,16 +132,7 @@ public class FileRepository {
                 LIMIT %d
                 """.formatted(ownerId, scopeCondition, queryCondition, orderBy, Math.max(0, offset), limit);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(sqlQuery))) != null) {
-                result.add(FileItemConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(sqlQuery);
     }
 
     public FileItemDto findByIdAndOwnerId(Long id, Long ownerId) {
@@ -226,38 +140,13 @@ public class FileRepository {
             return null;
         }
 
-        String query = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String query = selectBase() + """
                 WHERE f.id = %d
                   AND f.owner_id = %d
                   AND f.deleted_at IS NULL
                 """.formatted(id, ownerId);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : FileItemConverter.rowToDto(row);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return findOne(query);
     }
 
     public FileItemDto findById(Long id) {
@@ -265,37 +154,12 @@ public class FileRepository {
             return null;
         }
 
-        String query = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String query = selectBase() + """
                 WHERE f.id = %d
                   AND f.deleted_at IS NULL
                 """.formatted(id);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : FileItemConverter.rowToDto(row);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return findOne(query);
     }
 
     public FileItemDto save(FileItemDto fileItemDto) {
@@ -319,13 +183,7 @@ public class FileRepository {
                   AND f.deleted_at IS NULL
                 """.formatted(ownerId);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long value = row == null ? null : row.getLong("total_size");
-            return value == null ? 0L : value;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchLong(query, "total_size");
     }
 
     public long sumSizeAll() {
@@ -335,53 +193,28 @@ public class FileRepository {
                 WHERE f.deleted_at IS NULL
                 """;
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long value = row == null ? null : row.getLong("total_size");
-            return value == null ? 0L : value;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchLong(query, "total_size");
     }
 
     public List<FileItemDto> findAllActiveImageFiles() {
-        List<FileItemDto> result = new ArrayList<>();
-        String query = """
-                SELECT
-                    f.id,
-                    f.created_at,
-                    f.updated_at,
-                    f.deleted_at,
-                    f.owner_id,
-                    f.folder_id,
-                    folder.name AS folder_name,
-                    f.original_filename,
-                    f.storage_filename AS storage_name,
-                    f.mime_type,
-                    f.extension,
-                    f.file_size AS size_bytes,
-                    f.checksum AS checksum_sha256,
-                    f.description,
-                    f.preview_status,
-                    f.is_image,
-                    f.is_video
-                FROM public.agdrv_files f
-                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+        String query = selectBase() + """
                 WHERE f.deleted_at IS NULL
                   AND (f.is_image = TRUE OR f.mime_type ILIKE 'image/%')
                 ORDER BY f.id ASC
                 """;
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
-                result.add(FileItemConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return findMany(query);
+    }
 
-        return result;
+    public List<FileItemDto> findExpiredActiveFiles() {
+        String query = selectBase() + """
+                WHERE f.deleted_at IS NULL
+                  AND f.expires_at IS NOT NULL
+                  AND f.expires_at <= NOW()
+                ORDER BY f.expires_at ASC, f.id ASC
+                """;
+
+        return findMany(query);
     }
 
     public boolean existsByOwnerIdAndFolderIdAndOriginalFilename(Long ownerId,
@@ -405,13 +238,28 @@ public class FileRepository {
                   %s
                 """.formatted(ownerId, folderCondition, escapedFilename, excludeCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long total = row == null ? null : row.getLong("total");
-            return total != null && total > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        return fetchCount(query) > 0;
+    }
+
+    public FileItemDto findByOwnerIdAndFolderIdAndOriginalFilename(Long ownerId,
+                                                                   Long folderId,
+                                                                   String originalFilename) {
+        if (ownerId == null || originalFilename == null || originalFilename.isBlank()) {
+            return null;
         }
+
+        String escapedFilename = originalFilename.trim().replace("'", "''");
+        String folderCondition = folderId == null ? "f.folder_id IS NULL" : "f.folder_id = %d".formatted(folderId);
+        String query = selectBase() + """
+                WHERE f.owner_id = %d
+                  AND %s
+                  AND f.deleted_at IS NULL
+                  AND lower(f.original_filename) = lower('%s')
+                ORDER BY f.id DESC
+                LIMIT 1
+                """.formatted(ownerId, folderCondition, escapedFilename);
+
+        return findOne(query);
     }
 
     public long countActiveByStorageName(String storageName, Long excludeId) {
@@ -429,13 +277,69 @@ public class FileRepository {
                   %s
                 """.formatted(escapedStorageName, excludeCondition);
 
+        return fetchCount(query);
+    }
+
+    private List<FileItemDto> findMany(String query) {
+        List<FileItemDto> result = new ArrayList<>();
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
+            SqlRow row;
+            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
+                result.add(FileItemConverter.rowToDto(row));
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+        return result;
+    }
+
+    private FileItemDto findOne(String query) {
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row = sql.sql().fetch(query);
+            return row == null ? null : FileItemConverter.rowToDto(row);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private long fetchCount(String query) {
+        return fetchLong(query, "total");
+    }
+
+    private long fetchLong(String query, String column) {
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row = sql.sql().fetch(query);
+            Long value = row == null ? null : row.getLong(column);
+            return value == null ? 0L : value;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String selectBase() {
+        return """
+                SELECT
+                    f.id,
+                    f.created_at,
+                    f.updated_at,
+                    f.deleted_at,
+                    f.owner_id,
+                    f.folder_id,
+                    folder.name AS folder_name,
+                    f.original_filename,
+                    f.storage_filename AS storage_name,
+                    f.mime_type,
+                    f.extension,
+                    f.file_size AS size_bytes,
+                    f.checksum AS checksum_sha256,
+                    f.description,
+                    f.expires_at,
+                    f.preview_status,
+                    f.is_image,
+                    f.is_video
+                FROM public.agdrv_files f
+                LEFT JOIN public.agdrv_folders folder ON folder.id = f.folder_id
+                """;
     }
 
     private String buildFileQueryCondition(String query) {
@@ -486,5 +390,4 @@ public class FileRepository {
         }
         return "lower(f.original_filename) ASC, f.id ASC";
     }
-
 }

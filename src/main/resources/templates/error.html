@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${title}">AGTY/DRIVE Error</title>
+    <title th:text="${pageTitle != null ? pageTitle + ' :: AGTY/DRIVE' : 'Ошибка :: AGTY/DRIVE'}">Ошибка :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
     <link rel="stylesheet" href="/css/app.css">
 </head>
 <body data-theme="dark">
 <div class="auth-view">
     <div class="auth-card" style="width:min(720px,100%);">
-        <div class="brand-logo">AGTY/DRIVE</div>
-        <div class="brand-subtitle">Error</div>
+        <div class="brand-logo" th:text="${applicationTitle != null ? applicationTitle : 'AGTY/DRIVE'}">AGTY/DRIVE</div>
+        <div class="brand-subtitle" th:text="${applicationAbout != null ? applicationAbout : 'Secure file exchange workspace'}">Secure file exchange workspace</div>
         <h1 th:text="${errorTitle}">Ошибка приложения</h1>
         <p th:text="${errorMessage}">Во время обработки запроса произошла ошибка.</p>
 

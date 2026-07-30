@@ -16,6 +16,7 @@ public class FolderDto {
     private String pathKey;
     private String description;
     private Integer sortOrder;
+    private String expiresAt;
     private String createdAt;
     private String updatedAt;
     private String deletedAt;
@@ -26,6 +27,17 @@ public class FolderDto {
 
     public String getUpdatedAtTitle() {
         return convertDateTime(updatedAt);
+    }
+
+    public String getExpiresAtTitle() {
+        if (expiresAt == null || expiresAt.isBlank()) {
+            return "Без срока";
+        }
+        return convertDateTime(expiresAt);
+    }
+
+    public String getExpiresAtInputValue() {
+        return AppTime.formatForDateTimeInput(expiresAt);
     }
 
     private String convertDateTime(String value) {

@@ -2,6 +2,8 @@ package org.agty.drive.web.controllers.mvc.control;
 
 import org.agty.drive.support.IntegrationTestBootstrap;
 import org.agty.drive.dto.UserDto;
+import org.agty.drive.services.UserInviteService;
+import org.agty.drive.services.AppSettingService;
 import org.agty.drive.security.service.DriveUserDetails;
 import org.agty.drive.services.UserService;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,12 @@ class ControlMvcControllerTest extends IntegrationTestBootstrap {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private UserInviteService userInviteService;
+
+    @Autowired
+    private AppSettingService appSettingService;
 
     @Test
     void shouldRenderAdminSectionsWithSidebar() throws Exception {
@@ -62,6 +70,14 @@ class ControlMvcControllerTest extends IntegrationTestBootstrap {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Словарь ролей")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Словарь статусов")));
 
+        mockMvc.perform(get("/control/registration")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Инвайты на регистрацию")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Сохранить режим регистрации")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Всего инвайтов")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Создать инвайт")));
+
         mockMvc.perform(get("/control/audit")
                         .param("page", "1")
                         .param("size", "25")
@@ -94,5 +110,63 @@ class ControlMvcControllerTest extends IntegrationTestBootstrap {
         UserDto updated = userService.findById(admin.getId());
         assertNotNull(updated);
         assertEquals(128L, updated.getStorageQuotaMb());
+    }
+
+    @Test
+    void shouldCreateInviteAndRejectDuplicateActiveInvite() throws Exception {
+        UserDto admin = userService.findByLogin("admin");
+        assertNotNull(admin);
+
+        String login = "invite-user-" + System.nanoTime();
+        String email = login + "@example.com";
+
+        mockMvc.perform(post("/control/registration/invites/create")
+                        .param("login", login)
+                        .param("email", email)
+                        .param("displayName", "Invite User")
+                        .param("roleCode", "ROLE_USER")
+                        .param("statusCode", "ACTIVE")
+                        .param("storageQuotaMb", "64")
+                        .param("expiresInHours", "24")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/control/registration"));
+
+        assertEquals(1L, userInviteService.findAll().stream().filter(item -> login.equals(item.getLogin())).count());
+
+        mockMvc.perform(get("/control/registration")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/invite/")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(login)));
+
+        mockMvc.perform(post("/control/registration/invites/create")
+                        .param("login", login)
+                        .param("email", email)
+                        .param("displayName", "Invite User")
+                        .param("roleCode", "ROLE_USER")
+                        .param("statusCode", "ACTIVE")
+                        .param("storageQuotaMb", "64")
+                        .param("expiresInHours", "24")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Для этого логина уже есть активный инвайт.")));
+    }
+
+    @Test
+    void shouldUpdateOpenRegistrationMode() throws Exception {
+        UserDto admin = userService.findByLogin("admin");
+        assertNotNull(admin);
+
+        mockMvc.perform(post("/control/registration/mode")
+                        .param("openRegistrationEnabled", "true")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/control/registration"));
+
+        org.junit.jupiter.api.Assertions.assertTrue(appSettingService.isOpenRegistrationEnabled());
     }
 }

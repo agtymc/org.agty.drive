@@ -18,6 +18,7 @@ public final class FolderConverter {
         dto.setName(row.getDstring("name"));
         dto.setPathKey(row.getString("path_key"));
         dto.setDescription(row.getDstring("description"));
+        dto.setExpiresAt(row.getString("expires_at"));
         dto.setSortOrder(row.getInt("sort_order"));
         dto.setCreatedAt(row.getString("created_at"));
         dto.setUpdatedAt(row.getString("updated_at"));
@@ -33,6 +34,7 @@ public final class FolderConverter {
         entity.setName(dto.getName());
         entity.setPathKey(dto.getPathKey());
         entity.setDescription(dto.getDescription());
+        entity.setExpiresAt(dto.getExpiresAt());
         entity.setSortOrder(dto.getSortOrder() == null ? 0 : dto.getSortOrder());
         entity.setDeletedAt(dto.getDeletedAt());
         entity.setUpdatedAt(AppTime.nowForDatabase());

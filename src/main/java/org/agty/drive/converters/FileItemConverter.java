@@ -23,6 +23,7 @@ public final class FileItemConverter {
         dto.setSizeBytes(row.getLong("size_bytes"));
         dto.setChecksumSha256(row.getString("checksum_sha256"));
         dto.setDescription(row.getDstring("description"));
+        dto.setExpiresAt(row.getString("expires_at"));
         dto.setPreviewStatus(row.getString("preview_status"));
         dto.setIsImage(row.getBoolean("is_image"));
         dto.setIsVideo(row.getBoolean("is_video"));
@@ -44,6 +45,7 @@ public final class FileItemConverter {
         entity.setSizeBytes(dto.getSizeBytes() == null ? 0L : dto.getSizeBytes());
         entity.setChecksumSha256(dto.getChecksumSha256());
         entity.setDescription(dto.getDescription());
+        entity.setExpiresAt(dto.getExpiresAt());
         entity.setPreviewStatus(dto.getPreviewStatus() == null ? "NONE" : dto.getPreviewStatus());
         entity.setIsImage(Boolean.TRUE.equals(dto.getIsImage()));
         entity.setIsVideo(Boolean.TRUE.equals(dto.getIsVideo()));

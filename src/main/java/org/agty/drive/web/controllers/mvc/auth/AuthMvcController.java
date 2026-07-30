@@ -2,10 +2,13 @@ package org.agty.drive.web.controllers.mvc.auth;
 
 import jakarta.validation.Valid;
 import org.agty.drive.dto.InviteAcceptDto;
+import org.agty.drive.dto.OpenRegistrationDto;
 import org.agty.drive.dto.UserDto;
 import org.agty.drive.dto.UserInviteDto;
+import org.agty.drive.services.AppSettingService;
 import org.agty.drive.services.AuditLogService;
 import org.agty.drive.services.UserInviteService;
+import org.agty.drive.services.UserService;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,18 +23,29 @@ import org.springframework.web.bind.annotation.PostMapping;
 @Controller
 public class AuthMvcController {
 
+    private final AppSettingService appSettingService;
     private final UserInviteService userInviteService;
+    private final UserService userService;
     private final AuditLogService auditLogService;
 
-    public AuthMvcController(UserInviteService userInviteService,
+    public AuthMvcController(AppSettingService appSettingService,
+                             UserInviteService userInviteService,
+                             UserService userService,
                              AuditLogService auditLogService) {
+        this.appSettingService = appSettingService;
         this.userInviteService = userInviteService;
+        this.userService = userService;
         this.auditLogService = auditLogService;
     }
 
     @ModelAttribute("inviteAcceptDto")
     public InviteAcceptDto inviteAcceptForm() {
         return new InviteAcceptDto();
+    }
+
+    @ModelAttribute("openRegistrationDto")
+    public OpenRegistrationDto openRegistrationForm() {
+        return new OpenRegistrationDto();
     }
 
     @GetMapping("/login")
@@ -41,8 +55,58 @@ public class AuthMvcController {
             return "redirect:/cabinet";
         }
 
-        model.addAttribute("title", "AGTY/DRIVE");
+        model.addAttribute("pageTitle", "Вход");
+        model.addAttribute("openRegistrationEnabled", appSettingService.isOpenRegistrationEnabled());
         return "auth/login";
+    }
+
+    @GetMapping("/register")
+    public String register(Authentication authentication, Model model) {
+        if (authentication != null && authentication.isAuthenticated()
+                && !(authentication instanceof AnonymousAuthenticationToken)) {
+            return "redirect:/cabinet";
+        }
+
+        boolean openRegistrationEnabled = appSettingService.isOpenRegistrationEnabled();
+        model.addAttribute("pageTitle", "Регистрация");
+        model.addAttribute("openRegistrationEnabled", openRegistrationEnabled);
+        if (!openRegistrationEnabled) {
+            model.addAttribute("registrationError", "Открытая регистрация сейчас отключена.");
+        }
+        return "auth/register";
+    }
+
+    @PostMapping("/register")
+    public String acceptOpenRegistration(@Valid @ModelAttribute("openRegistrationDto") OpenRegistrationDto openRegistrationDto,
+                                         BindingResult bindingResult,
+                                         Model model) {
+        boolean openRegistrationEnabled = appSettingService.isOpenRegistrationEnabled();
+        model.addAttribute("pageTitle", "Регистрация");
+        model.addAttribute("openRegistrationEnabled", openRegistrationEnabled);
+
+        if (!openRegistrationEnabled) {
+            model.addAttribute("registrationError", "Открытая регистрация сейчас отключена.");
+            return "auth/register";
+        }
+        if (bindingResult.hasErrors()) {
+            return "auth/register";
+        }
+
+        String error = userService.validateOpenRegistration(openRegistrationDto);
+        if (error != null) {
+            model.addAttribute("registrationError", error);
+            return "auth/register";
+        }
+
+        UserDto user = userService.registerOpenUser(openRegistrationDto);
+        if (user == null) {
+            model.addAttribute("registrationError", "Не удалось завершить открытую регистрацию.");
+            return "auth/register";
+        }
+
+        auditLogService.log(user.getId(), "OPEN_REGISTER", "USER", user.getId(),
+                "Открытая регистрация пользователя " + user.getLogin());
+        return "redirect:/login?registered";
     }
 
     @GetMapping("/invite/{token}")
@@ -53,7 +117,7 @@ public class AuthMvcController {
         }
 
         UserInviteDto invite = userInviteService.findByToken(token);
-        model.addAttribute("title", "AGTY/DRIVE Invite");
+        model.addAttribute("pageTitle", "Инвайт");
         model.addAttribute("invite", invite);
         model.addAttribute("inviteAvailable", userInviteService.isAvailable(invite));
         if (invite == null) {
@@ -70,7 +134,7 @@ public class AuthMvcController {
                                BindingResult bindingResult,
                                Model model) {
         UserInviteDto invite = userInviteService.findByToken(token);
-        model.addAttribute("title", "AGTY/DRIVE Invite");
+        model.addAttribute("pageTitle", "Инвайт");
         model.addAttribute("invite", invite);
         model.addAttribute("inviteAvailable", userInviteService.isAvailable(invite));
 

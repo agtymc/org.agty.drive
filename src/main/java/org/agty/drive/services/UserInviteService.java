@@ -32,6 +32,18 @@ public class UserInviteService {
         return userInviteRepository.findAll();
     }
 
+    public long countAll() {
+        return userInviteRepository.countAll();
+    }
+
+    public long countActive() {
+        return userInviteRepository.countActive();
+    }
+
+    public long countUsed() {
+        return userInviteRepository.countUsed();
+    }
+
     public UserInviteDto findByToken(String token) {
         return userInviteRepository.findByToken(token);
     }
@@ -60,6 +72,14 @@ public class UserInviteService {
         String userError = userService.validateAdminCreateForInvite(userDto);
         if (userError != null) {
             return userError;
+        }
+        String login = dto.getLogin() == null ? null : dto.getLogin().trim();
+        if (userInviteRepository.existsActiveByLogin(login, null)) {
+            return "Для этого логина уже есть активный инвайт.";
+        }
+        String email = normalize(dto.getEmail());
+        if (email != null && userInviteRepository.existsActiveByEmail(email, null)) {
+            return "Для этого E-mail уже есть активный инвайт.";
         }
         if (dto.getExpiresInHours() != null && dto.getExpiresInHours() <= 0) {
             return "Срок инвайта должен быть больше 0 часов.";
@@ -92,8 +112,7 @@ public class UserInviteService {
         if (invite == null) {
             return "Инвайт не найден.";
         }
-        invite.setIsEnabled(false);
-        return userInviteRepository.save(invite) == null ? "Не удалось отключить инвайт." : null;
+        return userInviteRepository.disable(inviteId) ? null : "Не удалось отключить инвайт.";
     }
 
     public String validateAccept(UserInviteDto invite, InviteAcceptDto dto) {
@@ -111,6 +130,10 @@ public class UserInviteService {
         }
         if (userService.findByLogin(invite.getLogin()) != null) {
             return "Пользователь с таким логином уже существует.";
+        }
+        String email = normalize(invite.getEmail());
+        if (email != null && userService.findByEmail(email) != null) {
+            return "Пользователь с таким E-mail уже существует.";
         }
         return null;
     }
@@ -132,10 +155,7 @@ public class UserInviteService {
             return null;
         }
 
-        invite.setIsEnabled(false);
-        invite.setUsedAt(AppTime.nowForDatabase());
-        invite.setInvitedUserId(created.getId());
-        userInviteRepository.save(invite);
+        userInviteRepository.markUsed(invite.getId(), created.getId());
         return created;
     }
 

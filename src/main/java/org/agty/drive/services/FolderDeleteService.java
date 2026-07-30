@@ -1,6 +1,8 @@
 package org.agty.drive.services;
 
 import org.agty.drive.config.AppTime;
+import org.agty.drive.repository.CollaborativeAccessRepository;
+import org.agty.drive.repository.ShareLinkRepository;
 import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FolderDto;
 import org.springframework.stereotype.Service;
@@ -12,10 +14,17 @@ public class FolderDeleteService {
 
     private final FolderService folderService;
     private final FileService fileService;
+    private final ShareLinkRepository shareLinkRepository;
+    private final CollaborativeAccessRepository collaborativeAccessRepository;
 
-    public FolderDeleteService(FolderService folderService, FileService fileService) {
+    public FolderDeleteService(FolderService folderService,
+                               FileService fileService,
+                               ShareLinkRepository shareLinkRepository,
+                               CollaborativeAccessRepository collaborativeAccessRepository) {
         this.folderService = folderService;
         this.fileService = fileService;
+        this.shareLinkRepository = shareLinkRepository;
+        this.collaborativeAccessRepository = collaborativeAccessRepository;
     }
 
     public String deleteByIdAndOwnerId(Long id, Long ownerId) {
@@ -44,6 +53,8 @@ public class FolderDeleteService {
             }
         }
 
+        shareLinkRepository.disableAllByResource("FOLDER", folderDto.getId());
+        collaborativeAccessRepository.disableByFolder(folderDto.getId());
         folderDto.setDeletedAt(AppTime.nowForDatabase());
         return folderService.save(folderDto) == null ? "Не удалось удалить папку." : null;
     }

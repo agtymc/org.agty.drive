@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +35,36 @@ public class FileContentStorageService {
             Files.write(path, content == null ? new byte[0] : content);
         } catch (IOException e) {
             throw new RuntimeException("Failed to store file content: " + storageName, e);
+        }
+    }
+
+    public Path createTempFile() {
+        try {
+            Path tempDir = rootPath.resolve(".upload-tmp");
+            Files.createDirectories(tempDir);
+            return Files.createTempFile(tempDir, "upload-", ".tmp");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create temp upload file", e);
+        }
+    }
+
+    public void moveIntoStorage(Path tempPath, String storageName) {
+        if (tempPath == null) {
+            throw new IllegalArgumentException("tempPath is required");
+        }
+        if (storageName == null || storageName.isBlank()) {
+            throw new IllegalArgumentException("storageName is required");
+        }
+
+        try {
+            Path path = resolve(storageName);
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to move temp upload into storage: " + storageName, e);
         }
     }
 
@@ -97,6 +128,18 @@ public class FileContentStorageService {
             cleanupEmptyParents(path.getParent());
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete file content: " + storageName, e);
+        }
+    }
+
+    public void deleteTempFile(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+            cleanupEmptyParents(path.getParent());
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to delete temp file: " + path, e);
         }
     }
 

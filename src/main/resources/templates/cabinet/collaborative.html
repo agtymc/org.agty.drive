@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${applicationInfo.pageTitle(pageTitle)}">Совместный доступ :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark"
+      th:attr="data-collaborative-success=${collaborativeSuccess}">
+<div class="drive-shell">
+    <th:block th:replace="~{cabinet/fragments :: library-sidebar}"></th:block>
+
+    <div class="drive-main">
+        <th:block th:replace="~{cabinet/fragments :: library-topbar}"></th:block>
+
+        <main class="drive-content">
+            <section class="list-surface" data-upload-dropzone>
+                <div class="notice-banner error" th:if="${collaborativeError}" th:text="${collaborativeError}">Ошибка</div>
+
+                <div th:if="${!collaborativeBrowsing}">
+                    <section class="panel" th:if="${not #lists.isEmpty(providedCollaborativeFolders)}" style="margin-bottom:24px;">
+                        <div class="panel-head">
+                            <h2>Я предоставил доступ</h2>
+                        </div>
+                        <table class="file-table collaborative-file-table">
+                            <colgroup>
+                                <col class="col-name">
+                                <col class="col-owner">
+                                <col class="col-rights">
+                                <col class="col-action">
+                            </colgroup>
+                            <thead>
+                            <tr>
+                                <th>Объект</th>
+                                <th>Пользователи</th>
+                                <th>Права</th>
+                                <th>Действия</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="item : ${providedCollaborativeFolders}"
+                                class="folder-row"
+                                th:attr="data-folder-row=true,data-href=${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}">
+                                <td>
+                                    <div class="entry-cell">
+                                        <div class="entry-icon folder"></div>
+                                        <div class="entry-main">
+                                            <a class="entry-title entry-link"
+                                               th:href="${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}"
+                                               th:text="${item.folderName}">Папка</a>
+                                            <div class="entry-note" th:text="${item.passwordProtected ? 'Директория защищена паролем' : 'Директория без пароля'}">Директория без пароля</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.recipientLogins}">user1, user2</div>
+                                    <div class="entry-note" th:text="${item.recipientCountTitle}">2 пользователей</div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.rightsTitle}">Только чтение</div>
+                                    <div class="entry-note" th:text="${item.allowDelete ? 'Можно записывать/удалять объекты' : (item.allowWrite ? 'Запись разрешена' : 'Только просмотр содержимого')}">Только просмотр содержимого</div>
+                                </td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="inline-link" th:href="${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}">Открыть в диске</a>
+                                        <button type="button" class="inline-link" data-open-modal="collaborative-access-modal"
+                                                th:attr="data-collab-folder-id=${item.folderId},data-collab-folder-name=${item.folderName},data-collab-logins=${item.recipientLogins},data-collab-write=${item.allowWrite ? 'true' : 'false'},data-collab-delete=${item.allowDelete ? 'true' : 'false'},data-collab-password-protected=${item.passwordProtected ? 'true' : 'false'}">Настроить</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <section class="panel" th:if="${not #lists.isEmpty(receivedCollaborativeFolders)}">
+                        <div class="panel-head">
+                            <h2>Мне предоставили доступ</h2>
+                        </div>
+                        <table class="file-table collaborative-file-table">
+                            <colgroup>
+                                <col class="col-name">
+                                <col class="col-owner">
+                                <col class="col-rights">
+                                <col class="col-action">
+                            </colgroup>
+                            <thead>
+                            <tr>
+                                <th>Объект</th>
+                                <th>Владелец</th>
+                                <th>Права</th>
+                                <th>Действия</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="item : ${receivedCollaborativeFolders}"
+                                class="folder-row"
+                                th:attr="data-folder-row=true,data-href=${cabinetRoutes.pagePath('collaborative', item.folderId, 'list', 'date_newest', null, null, null, null, item.accessId, null, 20)}">
+                                <td>
+                                    <div class="entry-cell">
+                                        <div class="entry-icon folder"></div>
+                                        <div class="entry-main">
+                                            <a class="entry-title entry-link"
+                                               th:href="${cabinetRoutes.pagePath('collaborative', item.folderId, 'list', 'date_newest', null, null, null, null, item.accessId, null, 20)}"
+                                               th:text="${item.folderName}">Папка</a>
+                                            <div class="entry-note" th:text="${item.passwordProtected ? 'Потребуется пароль для входа' : 'Откроется сразу'}">Откроется сразу</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.ownerTitle}">owner</div>
+                                    <div class="entry-note">Владелец общей директории</div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.rightsTitle}">Только чтение</div>
+                                    <div class="entry-note" th:text="${item.allowDelete ? 'Можно записывать/удалять объекты' : (item.allowWrite ? 'Можно добавлять объекты' : 'Изменения запрещены')}">Изменения запрещены</div>
+                                </td>
+                                <td>
+                                    <a class="inline-link" th:href="${cabinetRoutes.pagePath('collaborative', item.folderId, 'list', 'date_newest', null, null, null, null, item.accessId, null, 20)}">Открыть</a>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <div class="empty-state empty-state-rich" th:if="${#lists.isEmpty(providedCollaborativeFolders) and #lists.isEmpty(receivedCollaborativeFolders)}">
+                        <div class="empty-state-badge">TEAM</div>
+                        <div class="empty-state-title">Совместного доступа пока нет</div>
+                        <div class="empty-state-copy">Откройте любую директорию из раздела "Файлы" для других пользователей, и она появится здесь.</div>
+                    </div>
+                </div>
+
+                <div th:if="${collaborativeBrowsing}">
+                    <div class="panel" style="margin-bottom:20px;" th:if="${collaborativeAccess != null}">
+                        <div class="info-list">
+                            <div class="info-row">
+                                <span>Владелец</span>
+                                <strong th:text="${collaborativeAccess.ownerTitle}">owner</strong>
+                            </div>
+                            <div class="info-row">
+                                <span>Права</span>
+                                <strong th:text="${collaborativeAccess.rightsTitle}">Только чтение</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel" th:if="${collaborativeAccess != null and collaborativeAccess.passwordProtected and !collaborativeUnlocked}">
+                        <div class="panel-head">
+                            <h2>Введите пароль для директории</h2>
+                        </div>
+                        <form class="folder-form" method="post" th:action="@{/cabinet/collaborative/unlock}">
+                            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                            <label>
+                                Пароль
+                                <input type="password" name="password" required>
+                            </label>
+                            <button type="submit">Открыть доступ</button>
+                        </form>
+                    </div>
+
+                    <div th:if="${collaborativeAccess != null and (!collaborativeAccess.passwordProtected or collaborativeUnlocked)}">
+                        <table class="file-table collaborative-file-table" th:if="${not #lists.isEmpty(folders) or not #lists.isEmpty(files)}">
+                            <colgroup>
+                                <col class="col-name">
+                                <col class="col-owner">
+                                <col class="col-rights">
+                                <col class="col-action">
+                            </colgroup>
+                            <thead>
+                            <tr>
+                                <th>Объект</th>
+                                <th>Создан</th>
+                                <th>Размер</th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="folder : ${folders}">
+                                <td>
+                                    <div class="entry-cell">
+                                        <div class="entry-icon folder"></div>
+                                        <div class="entry-main">
+                                            <a class="entry-title entry-link" th:href="${cabinetRoutes.pagePath('collaborative', folder.id, viewMode, sortMode, null, null, null, null, collaborativeAccess.id, null, pageSize)}" th:text="${folder.name}">Папка</a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td th:text="${folder.createdAtTitle}">29.07.2026 12:00</td>
+                                <td>Папка</td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="inline-link table-action-button" th:href="@{/cabinet/collaborative/folders/{id}/download(id=${folder.id},accessId=${collaborativeAccess.id})}" title="Скачать архив" aria-label="Скачать архив"><span class="action-download-icon" aria-hidden="true"></span></a>
+                                        <button th:if="${collaborativeCanDelete}"
+                                                type="button"
+                                                class="inline-link inline-link-danger"
+                                                data-open-modal="item-delete-modal"
+                                                th:attr="data-item-resource-type='FOLDER',data-item-resource-id=${folder.id},data-item-name=${folder.name},data-item-label='Папка'">Удалить</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr th:each="file : ${files}" th:with="previewType=${file.previewType},previewAvailable=${file.previewAvailable}">
+                                <td>
+                                    <div class="entry-cell">
+                                        <div class="entry-icon" th:classappend="${' ' + file.iconType}"><span th:text="${file.extensionTitle}">FILE</span></div>
+                                        <div class="entry-main">
+                                            <div class="entry-title" th:text="${file.originalFilename}">file.txt</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td th:text="${file.createdAtTitle}">29.07.2026 12:00</td>
+                                <td th:text="${file.sizeTitle}">0 Б</td>
+                                <td>
+                                    <div class="row-actions">
+                                        <button type="button" class="inline-link preview-eye-button table-action-button" th:if="${previewAvailable}" data-preview-trigger title="Просмотр" aria-label="Просмотр" th:attr="data-preview-title=${file.originalFilename},data-preview-type=${previewType},data-preview-src=${previewType == 'text' ? '/cabinet/collaborative/files/' + file.id + '/preview-text?accessId=' + collaborativeAccess.id : (previewType == 'audio' ? '/cabinet/collaborative/files/' + file.id + '/preview-audio?accessId=' + collaborativeAccess.id : '/cabinet/collaborative/files/' + file.id + '/content?accessId=' + collaborativeAccess.id)},data-preview-mime-type=${file.mimeType},data-preview-download-url=@{/cabinet/collaborative/files/{id}/download(id=${file.id},accessId=${collaborativeAccess.id})}"><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                                        <button type="button" class="inline-link preview-eye-button table-action-button" th:if="${!previewAvailable}" title="Просмотр недоступен" aria-label="Просмотр недоступен" disabled><span class="preview-glasses-icon" aria-hidden="true"></span></button>
+                                        <a class="inline-link table-action-button" th:href="@{/cabinet/collaborative/files/{id}/download(id=${file.id},accessId=${collaborativeAccess.id})}" title="Скачать файл" aria-label="Скачать файл"><span class="action-download-icon" aria-hidden="true"></span></a>
+                                        <button th:if="${collaborativeCanDelete}"
+                                                type="button"
+                                                class="inline-link inline-link-danger"
+                                                data-open-modal="item-delete-modal"
+                                                th:attr="data-item-resource-type='FILE',data-item-resource-id=${file.id},data-item-name=${file.originalFilename},data-item-label='Файл'">Удалить</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="empty-state empty-state-rich" th:if="${#lists.isEmpty(folders) and #lists.isEmpty(files)}">
+                            <div class="empty-state-badge">DIR</div>
+                            <div class="empty-state-title">Директория пока пуста</div>
+                            <div class="empty-state-copy">Файлы и поддиректории появятся здесь сразу после загрузки или создания.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div class="toast-stack" aria-live="polite" aria-atomic="false" data-toast-stack></div>
+
+<div class="modal-backdrop" data-modal="item-delete-modal" hidden th:if="${collaborativeBrowsing}">
+    <div class="modal-card modal-card-compact">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Warning</div>
+                <h2>Удалить объект?</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="item-delete-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/collaborative/items/delete}" data-item-delete-form>
+            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+            <input type="hidden" name="resourceType" value="" data-item-delete-resource-type>
+            <input type="hidden" name="resourceId" value="" data-item-delete-resource-id>
+            <div class="confirm-copy">Объект будет удален из общей директории. Для папки это действие затронет все вложенные файлы и директории.</div>
+            <div class="confirm-target" data-item-delete-name>Файл</div>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link" data-close-modal="item-delete-modal">Отмена</button>
+                <button type="submit" class="inline-link inline-link-danger">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="warning-modal" hidden>
+    <div class="modal-card modal-card-compact warning-modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Warning</div>
+                <h2 data-warning-modal-title>Подтверждение</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="warning-modal">×</button>
+        </div>
+        <div class="confirm-copy" data-warning-modal-message>Подтвердите действие.</div>
+        <div class="confirm-target" data-warning-modal-target hidden>Файл</div>
+        <div class="row-actions confirm-actions">
+            <button type="button" class="inline-link" data-close-modal="warning-modal">Отмена</button>
+            <button type="button" class="inline-link" data-warning-modal-skip hidden>Пропустить</button>
+            <button type="button" class="inline-link inline-link-danger" data-warning-modal-confirm>Подтвердить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="collaborative-access-modal" hidden>
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Collaborative</div>
+                <h2>Совместный доступ к папке</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="collaborative-access-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/collaborative/access}" th:object="${collaborativeAccessCreateDto}">
+            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+            <input type="hidden" th:field="*{folderId}" data-collab-folder-id-input>
+            <label>
+                Папка
+                <input type="text" value="" data-collab-folder-name-input readonly>
+            </label>
+            <label>
+                Логины пользователей через запятую
+                <textarea th:field="*{logins}" rows="4" placeholder="user1, user2 или по одному логину на строку" data-collab-logins-input></textarea>
+            </label>
+            <div class="status-text" data-collab-password-note hidden>Пароль уже установлен. Оставьте поле пустым, чтобы сохранить его.</div>
+            <label>
+                Пароль на директорию
+                <input type="text" th:field="*{password}" maxlength="255" placeholder="Необязательно">
+            </label>
+            <label class="checkbox-row"><input type="checkbox" th:field="*{allowWrite}" data-collab-write-input><span>Разрешить запись</span></label>
+            <label class="checkbox-row"><input type="checkbox" th:field="*{allowDelete}" data-collab-delete-input><span>Разрешить удаление</span></label>
+            <button type="submit">Сохранить доступ</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="folder-modal" hidden th:if="${collaborativeBrowsing and collaborativeCanWrite}">
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Create</div>
+                <h2>Новая папка</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="folder-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/collaborative/folders/add}" th:object="${folderDto}">
+            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+            <input type="hidden" name="parentId" th:value="${currentFolderId}">
+            <label>
+                Название папки
+                <input type="text" th:field="*{name}" maxlength="255" required>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" data-expiration-toggle>
+                <span>Удалить автоматически</span>
+            </label>
+            <div class="row-actions" data-expiration-presets>
+                <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+            </div>
+            <label>
+                Время жизни
+                <input type="datetime-local" th:field="*{expiresAt}" data-expiration-input>
+            </label>
+            <button type="submit">Создать папку</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="upload-modal" hidden th:if="${collaborativeBrowsing and collaborativeCanWrite}">
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Upload</div>
+                <h2>Загрузка файла</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="upload-modal">×</button>
+        </div>
+        <form class="folder-form upload-form" method="post" enctype="multipart/form-data" th:action="@{/cabinet/collaborative/files/upload}" th:object="${fileUploadDto}" data-upload-form th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[currentFolderId]}">
+            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+            <input type="hidden" name="folderId" th:value="${currentFolderId}">
+            <input type="hidden" th:field="*{overwriteExisting}" data-upload-overwrite-existing>
+            <label>
+                Описание файла
+                <input type="text" th:field="*{description}" maxlength="500" placeholder="Что находится внутри" data-upload-description>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" data-expiration-toggle>
+                <span>Удалить автоматически</span>
+            </label>
+            <div class="row-actions" data-expiration-presets>
+                <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+            </div>
+            <label>
+                Время жизни
+                <input type="datetime-local" th:field="*{expiresAt}" data-expiration-input data-upload-expires-input>
+            </label>
+            <div class="upload-dropzone" data-upload-dropzone-inner>
+                <input class="upload-file-input" type="file" th:field="*{file}" required multiple>
+                <div class="upload-dropzone-title">Перетащите файл сюда</div>
+                <div class="upload-dropzone-text">или нажмите, чтобы выбрать один или несколько файлов из системы</div>
+                <div class="upload-dropzone-meta" data-upload-file-name>Файл еще не выбран</div>
+            </div>
+            <div class="upload-progress" data-upload-progress hidden>
+                <div class="upload-progress-head">
+                    <span data-upload-progress-label>Загрузка файла</span>
+                    <strong data-upload-progress-value>0%</strong>
+                </div>
+                <div class="upload-progress-track" aria-hidden="true">
+                    <div class="upload-progress-bar" data-upload-progress-bar></div>
+                </div>
+            </div>
+            <div class="upload-queue" data-upload-queue hidden>
+                <div class="upload-queue-head">
+                    <span>Очередь загрузки</span>
+                    <span data-upload-queue-meta>0 файлов</span>
+                </div>
+                <div class="upload-queue-list" data-upload-queue-list></div>
+            </div>
+            <button type="submit">Загрузить файлы</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="paste-modal" hidden th:if="${collaborativeBrowsing and collaborativeCanWrite}">
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Clipboard</div>
+                <h2>Вставка из буфера</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="paste-modal">×</button>
+        </div>
+        <form class="folder-form" data-paste-form>
+            <label>
+                Имя файла
+                <input type="text" maxlength="255" placeholder="Например, note.txt" data-paste-filename required>
+            </label>
+            <label>
+                Описание файла
+                <input type="text" maxlength="500" placeholder="Что находится внутри" data-paste-description>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" data-expiration-toggle>
+                <span>Удалить автоматически</span>
+            </label>
+            <div class="row-actions" data-expiration-presets>
+                <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+            </div>
+            <label>
+                Время жизни
+                <input type="datetime-local" data-expiration-input data-paste-expires-input>
+            </label>
+            <div class="paste-preview-card">
+                <div class="paste-preview-head">
+                    <div class="paste-preview-kind">
+                        <span class="paste-preview-kind-icon" aria-hidden="true" data-paste-kind-icon>TXT</span>
+                        <strong data-paste-kind-title>Текст</strong>
+                    </div>
+                    <span class="paste-preview-meta" data-paste-preview-meta>0 Б</span>
+                </div>
+                <div class="paste-preview-stage">
+                    <div hidden data-paste-preview-image-host></div>
+                    <pre class="paste-preview-text" hidden data-paste-preview-text></pre>
+                </div>
+            </div>
+            <div class="error-text" hidden data-paste-error>Некорректные данные буфера.</div>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link" data-close-modal="paste-modal">Отмена</button>
+                <button type="submit">Сохранить файл</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="drag-overlay" hidden data-drag-overlay>
+    <div class="drag-overlay-box">
+        <div class="drag-overlay-title">Отпустите, чтобы загрузить</div>
+        <div class="drag-overlay-text">Файл будет добавлен в выбранную папку через окно загрузки.</div>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="preview-modal" hidden>
+    <div class="modal-card modal-card-preview">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">Preview</div>
+                <h2 data-preview-modal-title>Быстрый просмотр</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="preview-modal">×</button>
+        </div>
+        <div class="preview-toolbar">
+            <button type="button" class="toolbar-chip" data-preview-prev>← Назад</button>
+            <div class="preview-toolbar-meta" data-preview-position>1 / 1</div>
+            <button type="button" class="toolbar-chip" data-preview-next>Дальше →</button>
+            <div class="preview-toolbar-actions">
+                <a class="inline-link" href="#" data-preview-download-link>Скачать</a>
+                <button type="button" class="inline-link" data-preview-share-link>Публичная ссылка</button>
+            </div>
+        </div>
+        <div class="preview-stage">
+            <div data-preview-content-host></div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="library-modals">
+    <div class="modal-backdrop" data-modal="search-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Search</div>
+                    <h2>Поиск</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="search-modal">×</button>
+            </div>
+            <form class="folder-form search-modal-form" method="get" th:action="${cabinetRoutes.sectionPath(cabinetSection)}">
+                <input type="hidden" name="folderId" th:if="${cabinetState.currentFolderId != null}" th:value="${cabinetState.currentFolderId}">
+                <input type="hidden" name="view" th:value="${viewMode}">
+                <input type="hidden" name="sort" th:value="${sortMode}">
+                <input type="hidden" name="size" th:value="${pageSize}">
+                <input type="hidden" name="shareStatus" th:if="${libraryMode == 'shared'}" th:value="${sharedStatusFilter}">
+                <input type="hidden" name="shareType" th:if="${libraryMode == 'shared'}" th:value="${sharedTypeFilter}">
+                <label>
+                    Что ищем
+                    <input type="search" name="q" th:value="${searchQuery}" th:placeholder="${libraryMode == 'photos' ? 'Название фото или описание' : (libraryMode == 'videos' ? 'Название видео или описание' : (libraryMode == 'shared' ? 'Имя объекта или название ссылки' : 'Имя файла или папки'))}" autofocus>
+                </label>
+                <label th:if="${cabinetSection == 'files'}">
+                    Где искать
+                    <select name="scope">
+                        <option value="current" th:selected="${searchScope == 'current'}">Только в текущей директории</option>
+                        <option value="tree" th:selected="${searchScope == 'tree'}">В директории и поддиректориях</option>
+                        <option value="all" th:selected="${searchScope == 'all'}">Во всех директориях</option>
+                    </select>
+                </label>
+                <div class="row-actions confirm-actions">
+                    <a class="inline-link" th:if="${searchActive}" th:href="${cabinetRoutes.pagePath(cabinetSection, currentFolderId, viewMode, sortMode, null, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}">Сбросить</a>
+                    <button type="submit">Искать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="folder-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Create</div>
+                    <h2>Новая папка</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="folder-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/folders/add}" th:object="${folderDto}">
+                <input type="hidden" name="parentId" th:value="${currentFolderId}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(false)}"></th:block>
+                <label>
+                    Название папки
+                    <input type="text" th:field="*{name}" maxlength="255" placeholder="Например, Фото 2026" required>
+                    <span class="error-text" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Ошибка</span>
+                </label>
+                <label>
+                    Описание
+                    <input type="text" th:field="*{description}" maxlength="500" placeholder="Короткое описание папки">
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" data-expiration-toggle>
+                    <span>Удалить автоматически</span>
+                </label>
+                <div class="row-actions" data-expiration-presets>
+                    <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                    <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                    <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                    <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+                </div>
+                <label>
+                    Время жизни
+                    <input type="datetime-local" th:field="*{expiresAt}" data-expiration-input>
+                </label>
+                <button type="submit">Создать папку</button>
+            </form>
+            <div class="status-text" th:if="${folderSuccess}" th:text="${folderSuccess}">Папка создана.</div>
+            <div class="error-text" th:if="${folderError}" th:text="${folderError}">Ошибка</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="upload-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Upload</div>
+                    <h2>Загрузка файла</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="upload-modal">×</button>
+            </div>
+            <form class="folder-form upload-form" method="post" enctype="multipart/form-data" th:action="@{/cabinet/files/upload}" th:object="${fileUploadDto}" data-upload-form>
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(false)}"></th:block>
+                <input type="hidden" th:field="*{overwriteExisting}" data-upload-overwrite-existing>
+                <label>
+                    Куда загрузить
+                    <select th:field="*{folderId}" required>
+                        <option th:if="${currentFolder == null}" value="">Выберите папку</option>
+                        <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[currentFolder.id]}">Текущая папка</option>
+                        <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[option.id]}">Документы</option>
+                    </select>
+                </label>
+                <label>
+                    Описание файла
+                    <input type="text" th:field="*{description}" maxlength="500" placeholder="Что находится внутри" data-upload-description>
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" data-expiration-toggle>
+                    <span>Удалить автоматически</span>
+                </label>
+                <div class="row-actions" data-expiration-presets>
+                    <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                    <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                    <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                    <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+                </div>
+                <label>
+                    Время жизни
+                    <input type="datetime-local" th:field="*{expiresAt}" data-expiration-input data-upload-expires-input>
+                </label>
+                <div class="upload-dropzone" data-upload-dropzone-inner>
+                    <input class="upload-file-input" type="file" th:field="*{file}" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}" required multiple>
+                    <div class="upload-dropzone-title">Перетащите файл сюда</div>
+                    <div class="upload-dropzone-text">или нажмите, чтобы выбрать один или несколько файлов из системы</div>
+                    <div class="upload-dropzone-meta" data-upload-file-name>Файл еще не выбран</div>
+                </div>
+                <div class="upload-progress" data-upload-progress hidden>
+                    <div class="upload-progress-head">
+                        <span data-upload-progress-label>Загрузка файла</span>
+                        <strong data-upload-progress-value>0%</strong>
+                    </div>
+                    <div class="upload-progress-track" aria-hidden="true">
+                        <div class="upload-progress-bar" data-upload-progress-bar></div>
+                    </div>
+                </div>
+                <div class="upload-queue" data-upload-queue hidden>
+                    <div class="upload-queue-head">
+                        <span>Очередь загрузки</span>
+                        <span data-upload-queue-meta>0 файлов</span>
+                    </div>
+                    <div class="upload-queue-list" data-upload-queue-list></div>
+                </div>
+                <button type="submit" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}">Загрузить файлы</button>
+            </form>
+            <div class="empty-state" th:if="${currentFolder == null and #lists.isEmpty(folders)}">Сначала создайте хотя бы одну папку, затем загрузка станет доступной.</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="paste-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Clipboard</div>
+                    <h2>Вставка из буфера</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="paste-modal">×</button>
+            </div>
+            <form class="folder-form" data-paste-form>
+                <label>
+                    Куда сохранить
+                    <select data-paste-folder required>
+                        <option th:if="${currentFolder == null}" value="">Выберите папку</option>
+                        <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}">Текущая папка</option>
+                        <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}">Документы</option>
+                    </select>
+                </label>
+                <label>
+                    Имя файла
+                    <input type="text" maxlength="255" placeholder="Например, note.txt" data-paste-filename required>
+                </label>
+                <label>
+                    Описание файла
+                    <input type="text" maxlength="500" placeholder="Что находится внутри" data-paste-description>
+                </label>
+                <label class="checkbox-row">
+                    <input type="checkbox" data-expiration-toggle>
+                    <span>Удалить автоматически</span>
+                </label>
+                <div class="row-actions" data-expiration-presets>
+                    <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                    <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                    <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                    <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+                </div>
+                <label>
+                    Время жизни
+                    <input type="datetime-local" data-expiration-input data-paste-expires-input>
+                </label>
+                <div class="paste-preview-card">
+                    <div class="paste-preview-head">
+                        <div class="paste-preview-kind">
+                            <span class="paste-preview-kind-icon" aria-hidden="true" data-paste-kind-icon>TXT</span>
+                            <strong data-paste-kind-title>Текст</strong>
+                        </div>
+                        <span class="paste-preview-meta" data-paste-preview-meta>0 Б</span>
+                    </div>
+                    <div class="paste-preview-stage">
+                        <div hidden data-paste-preview-image-host></div>
+                        <pre class="paste-preview-text" hidden data-paste-preview-text></pre>
+                    </div>
+                </div>
+                <div class="error-text" hidden data-paste-error>Некорректные данные буфера.</div>
+                <div class="row-actions confirm-actions">
+                    <button type="button" class="inline-link" data-close-modal="paste-modal">Отмена</button>
+                    <button type="submit">Сохранить файл</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="item-actions-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="item-actions-header">
+                <div class="item-actions-target">
+                    <div class="item-actions-target-icon file" data-item-actions-icon aria-hidden="true"></div>
+                    <div class="item-actions-target-name" data-item-actions-name>Имя файла</div>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="item-actions-modal">×</button>
+            </div>
+            <div class="item-actions-body">
+                <div class="item-actions-divider" aria-hidden="true"></div>
+                <div class="item-actions-label">Действия</div>
+                <div class="action-menu">
+                    <button type="button" class="action-menu-btn" data-item-collaborative-action hidden>
+                        <span class="action-menu-icon" aria-hidden="true">👥</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Совместный доступ</span>
+                            <span class="action-menu-text">Открыть папку для других пользователей</span>
+                        </span>
+                    </button>
+                    <button type="button" class="action-menu-btn" data-item-share-action>
+                        <span class="action-menu-icon" aria-hidden="true">🔗</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Публичная ссылка</span>
+                            <span class="action-menu-text">Открыть доступ и настроить права</span>
+                        </span>
+                    </button>
+                    <button type="button" class="action-menu-btn" data-item-rename-action>
+                        <span class="action-menu-icon" aria-hidden="true">✎</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Переименовать</span>
+                            <span class="action-menu-text">Изменить имя объекта</span>
+                        </span>
+                    </button>
+                    <button type="button" class="action-menu-btn" data-item-move-action>
+                        <span class="action-menu-icon" aria-hidden="true">⇄</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Переместить</span>
+                            <span class="action-menu-text">Выбрать другую директорию</span>
+                        </span>
+                    </button>
+                    <button type="button" class="action-menu-btn" data-item-properties-action>
+                        <span class="action-menu-icon" aria-hidden="true">ⓘ</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Свойства</span>
+                            <span class="action-menu-text">Посмотреть данные и срок жизни</span>
+                        </span>
+                    </button>
+                    <button type="button" class="action-menu-btn action-menu-btn-danger" data-item-delete-action>
+                        <span class="action-menu-icon" aria-hidden="true">🗑</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Удалить</span>
+                            <span class="action-menu-text">Убрать объект из диска</span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="item-rename-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Rename</div>
+                    <h2>Переименовать</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="item-rename-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/items/rename}" th:object="${itemRenameDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{resourceType}" data-item-rename-resource-type>
+                <input type="hidden" th:field="*{resourceId}" data-item-rename-resource-id>
+                <div class="confirm-target" data-item-rename-current-name>Имя объекта</div>
+                <label>
+                    Новое название
+                    <input type="text" th:field="*{newName}" data-item-rename-input maxlength="255" required>
+                    <span class="error-text" th:if="${#fields.hasErrors('newName')}" th:errors="*{newName}">Ошибка</span>
+                </label>
+                <div class="error-text" th:if="${renameError}" th:text="${renameError}">Ошибка</div>
+                <button type="submit">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="item-move-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Move</div>
+                    <h2>Переместить</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="item-move-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/items/move}" th:object="${itemMoveDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{resourceType}" data-item-move-resource-type>
+                <input type="hidden" th:field="*{resourceId}" data-item-move-resource-id>
+                <div class="confirm-target" data-item-move-current-name>Имя объекта</div>
+                <label>
+                    Куда переместить
+                    <select th:field="*{targetFolderId}" data-item-move-target-input>
+                        <option th:each="option : ${moveFolderOptions}" th:value="${option.id}" th:text="${option.displayTitle}" th:attr="data-path-key=${option.pathKey}">Корень диска</option>
+                    </select>
+                </label>
+                <div class="error-text" th:if="${moveError}" th:text="${moveError}">Ошибка</div>
+                <button type="submit">Переместить</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="share-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Share</div>
+                    <h2>Публичная ссылка</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="share-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/shares}" th:object="${shareLinkCreateDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{resourceType}" data-share-resource-type-input>
+                <input type="hidden" th:field="*{resourceId}" data-share-resource-id-input>
+                <div class="notice-banner success" data-share-result hidden><span data-share-result-text>Публичная ссылка создана.</span></div>
+                <label>
+                    <span data-share-item-label-view>Файл</span>
+                    <input type="text" value="" data-share-file-name-input readonly>
+                </label>
+                <div class="share-current" data-share-current hidden>
+                    <div class="share-current-title">Текущая публичная ссылка</div>
+                    <input type="text" value="" data-share-url-input readonly>
+                    <div class="share-current-meta">
+                        <span><strong>Действует до:</strong> <span data-share-expires-title>Без срока действия</span></span>
+                        <span aria-hidden="true">•</span>
+                        <span data-share-rights-title>Просмотр и скачивание</span>
+                    </div>
+                    <div class="row-actions">
+                        <a class="inline-link" href="#" data-share-open-link target="_blank" rel="noopener">Открыть</a>
+                        <button type="button" class="inline-link" data-share-copy-link>Копировать</button>
+                        <button type="button" class="inline-link inline-link-danger" data-share-delete-trigger>Удалить ссылку</button>
+                    </div>
+                </div>
+                <label>Название ссылки<input type="text" th:field="*{title}" maxlength="255" placeholder="Например, Документ для клиента"></label>
+                <label>Пароль<input type="text" th:field="*{password}" maxlength="255" placeholder="Необязательно"></label>
+                <label>Срок действия, часов<input type="number" th:field="*{expiresInHours}" min="1" step="1" placeholder="24" data-share-expires-hours></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{expiresUnlimited}" data-share-expires-unlimited><span>Без срока действия</span></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{allowPreview}"><span>Разрешить просмотр</span></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{allowDownload}"><span>Разрешить скачивание</span></label>
+                <button type="submit">Создать ссылку</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="item-properties-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Properties</div>
+                    <h2>Свойства</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="item-properties-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/items/properties}" th:object="${itemPropertiesDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{resourceType}" data-item-properties-resource-type>
+                <input type="hidden" th:field="*{resourceId}" data-item-properties-resource-id>
+                <div class="confirm-target" data-item-properties-name>Имя объекта</div>
+                <div class="info-grid">
+                    <div class="info-row"><span>Тип</span><strong data-item-properties-type>Файл</strong></div>
+                    <div class="info-row"><span>Создан</span><strong data-item-properties-created>—</strong></div>
+                    <div class="info-row"><span>Изменен</span><strong data-item-properties-updated>—</strong></div>
+                    <div class="info-row"><span>Текущий срок</span><strong data-item-properties-expires-title>Без срока</strong></div>
+                </div>
+                <label class="checkbox-row">
+                    <input type="checkbox" th:field="*{autoDelete}" data-item-properties-expires-enabled>
+                    <span>Удалить автоматически</span>
+                </label>
+                <div class="row-actions" data-expiration-presets>
+                    <button type="button" class="inline-link" data-expiration-preset="1h">1 час</button>
+                    <button type="button" class="inline-link" data-expiration-preset="24h">24 часа</button>
+                    <button type="button" class="inline-link" data-expiration-preset="7d">Неделя</button>
+                    <button type="button" class="inline-link" data-expiration-preset="30d">Месяц</button>
+                </div>
+                <label>
+                    Время жизни
+                    <input type="datetime-local" th:field="*{expiresAt}" data-item-properties-expires-input data-expiration-input>
+                </label>
+                <div class="error-text" th:if="${propertiesError}" th:text="${propertiesError}">Ошибка</div>
+                <button type="submit">Сохранить свойства</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="collaborative-access-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Collaborative</div>
+                    <h2>Совместный доступ к папке</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="collaborative-access-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/collaborative/access}" th:object="${collaborativeAccessCreateDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{folderId}" data-collab-folder-id-input>
+                <label>
+                    Папка
+                    <input type="text" value="" data-collab-folder-name-input readonly>
+                </label>
+                <label>
+                Логины пользователей через запятую
+                    <textarea th:field="*{logins}" rows="4" placeholder="user1, user2 или по одному логину на строку" data-collab-logins-input></textarea>
+                </label>
+                <div class="status-text" data-collab-password-note hidden>Пароль уже установлен. Оставьте поле пустым, чтобы сохранить его.</div>
+                <label>
+                    Пароль на директорию
+                    <input type="text" th:field="*{password}" maxlength="255" placeholder="Необязательно">
+                </label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{allowWrite}" data-collab-write-input><span>Разрешить запись</span></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{allowDelete}" data-collab-delete-input><span>Разрешить удаление</span></label>
+                <button type="submit">Сохранить доступ</button>
+            </form>
+            <div class="error-text" th:if="${collaborativeError}" th:text="${collaborativeError}">Ошибка</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="share-delete-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Warning</div>
+                    <h2>Удалить ссылку?</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="share-delete-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/shares/delete}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" name="resourceType" value="" data-share-delete-resource-type>
+                <input type="hidden" name="resourceId" value="" data-share-delete-resource-id>
+                <div class="confirm-copy">Публичная ссылка для этого объекта будет удалена. Доступ по ней сразу прекратится.</div>
+                <div class="confirm-target" data-share-delete-item-name>Файл</div>
+                <div class="row-actions confirm-actions">
+                    <button type="button" class="inline-link" data-close-modal="share-delete-modal">Отмена</button>
+                    <button type="submit" class="inline-link inline-link-danger">Удалить ссылку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="warning-modal" hidden>
+        <div class="modal-card modal-card-compact warning-modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Warning</div>
+                    <h2 data-warning-modal-title>Подтверждение</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="warning-modal">×</button>
+            </div>
+            <div class="confirm-copy" data-warning-modal-message>Подтвердите действие.</div>
+            <div class="confirm-target" data-warning-modal-target hidden>Файл</div>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link" data-close-modal="warning-modal">Отмена</button>
+                <button type="button" class="inline-link" data-warning-modal-skip hidden>Пропустить</button>
+                <button type="button" class="inline-link inline-link-danger" data-warning-modal-confirm>Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="item-delete-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Warning</div>
+                    <h2>Удалить объект?</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="item-delete-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/items/delete}" data-item-delete-form>
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" name="resourceType" value="" data-item-delete-resource-type>
+                <input type="hidden" name="resourceId" value="" data-item-delete-resource-id>
+                <div class="confirm-copy">Объект будет удален из вашего диска. Для папки это действие затронет все вложенные файлы и директории.</div>
+                <div class="confirm-target" data-item-delete-name>Файл</div>
+                <div class="row-actions confirm-actions">
+                    <button type="button" class="inline-link" data-close-modal="item-delete-modal">Отмена</button>
+                    <button type="submit" class="inline-link inline-link-danger">Удалить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="bulk-move-modal" hidden>
+        <div class="modal-card modal-card-compact">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Move</div>
+                    <h2>Переместить выбранное</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="bulk-move-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/items/bulk/move}" data-bulk-move-form>
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" name="selectedFileIds" value="" data-bulk-file-ids>
+                <input type="hidden" name="selectedFolderIds" value="" data-bulk-folder-ids>
+                <label>
+                    Куда переместить
+                    <select name="targetFolderId">
+                        <option th:each="option : ${moveFolderOptions}" th:value="${option.id}" th:text="${option.displayTitle}">Корень диска</option>
+                    </select>
+                </label>
+                <button type="submit">Переместить</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="drag-overlay" hidden data-drag-overlay>
+        <div class="drag-overlay-box">
+            <div class="drag-overlay-title">Отпустите, чтобы загрузить</div>
+            <div class="drag-overlay-text">Файл будет добавлен в выбранную папку через окно загрузки.</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="preview-modal" hidden>
+        <div class="modal-card modal-card-preview">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">Preview</div>
+                    <h2 data-preview-modal-title>Быстрый просмотр</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="preview-modal">×</button>
+            </div>
+            <div class="preview-toolbar">
+                <button type="button" class="toolbar-chip" data-preview-prev>← Назад</button>
+                <div class="preview-toolbar-meta" data-preview-position>1 / 1</div>
+                <button type="button" class="toolbar-chip" data-preview-next>Дальше →</button>
+                <div class="preview-toolbar-actions">
+                    <a class="inline-link" href="#" data-preview-download-link>Скачать</a>
+                    <button type="button" class="inline-link" data-preview-share-link>Публичная ссылка</button>
+                </div>
+            </div>
+            <div class="preview-stage">
+                <div data-preview-content-host></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-stack" aria-live="polite" aria-atomic="false" data-toast-stack></div>
+</th:block>
+</body>
+</html>

@@ -5,6 +5,7 @@ import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FolderDto;
 import org.agty.drive.dto.ShareLinkCreateDto;
 import org.agty.drive.dto.ShareLinkDto;
+import org.agty.drive.dto.SharedLibraryItemDto;
 import org.agty.drive.repository.ShareLinkRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Comparator;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 @Service
 public class ShareLinkService {
@@ -36,6 +40,7 @@ public class ShareLinkService {
         if (ownerId == null || createDto == null || createDto.getResourceId() == null) {
             return null;
         }
+        normalizeCreateDto(createDto);
 
         if ("FOLDER".equalsIgnoreCase(createDto.getResourceType())) {
             ShareLinkDto folderShare = createFolderShareLink(ownerId, createDto);
@@ -72,6 +77,7 @@ public class ShareLinkService {
         if (createDto == null || createDto.getResourceId() == null) {
             return "Не выбран файл или папка для публичной ссылки.";
         }
+        normalizeCreateDto(createDto);
 
         if ("FOLDER".equalsIgnoreCase(createDto.getResourceType())) {
             return folderService.findByIdAndOwnerId(createDto.getResourceId(), ownerId) == null
@@ -198,6 +204,111 @@ public class ShareLinkService {
         return result;
     }
 
+    public List<SharedLibraryItemDto> findActiveLibraryByCreator(Long ownerId) {
+        return findActiveLibraryByCreator(ownerId, null, null);
+    }
+
+    public List<SharedLibraryItemDto> findActiveLibraryByCreator(Long ownerId,
+                                                                 String query,
+                                                                 String sortMode) {
+        return findLibraryByCreator(ownerId, query, sortMode, null, null);
+    }
+
+    public List<SharedLibraryItemDto> findLibraryByCreator(Long ownerId,
+                                                           String query,
+                                                           String sortMode,
+                                                           String statusFilter,
+                                                           String typeFilter) {
+        if (ownerId == null) {
+            return List.of();
+        }
+
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        String normalizedStatusFilter = normalizeSharedStatusFilter(statusFilter);
+        String normalizedTypeFilter = normalizeSharedTypeFilter(typeFilter);
+
+        return buildOwnedSharedLibrary(ownerId).stream()
+                .filter(item -> item != null)
+                .filter(item -> normalizedQuery.isBlank()
+                        || containsIgnoreCase(item.getResourceName(), normalizedQuery)
+                        || containsIgnoreCase(item.getShareLink().getTitle(), normalizedQuery))
+                .filter(item -> normalizedTypeFilter == null
+                        || ("folders".equals(normalizedTypeFilter) && item.isFolder())
+                        || ("files".equals(normalizedTypeFilter) && item.isFile()))
+                .filter(item -> normalizedStatusFilter == null || normalizedStatusFilter.equals(item.getStatusCode()))
+                .sorted(buildSharedLibraryComparator(sortMode))
+                .collect(Collectors.toList());
+    }
+
+    private List<SharedLibraryItemDto> buildOwnedSharedLibrary(Long ownerId) {
+        Map<Long, ShareLinkDto> latestFolderShareLinks = findLatestFolderShareLinks(folderService.findAllByOwnerId(ownerId));
+        Map<Long, ShareLinkDto> latestFileShareLinks = findLatestFileShareLinks(fileService.findAllByOwnerId(ownerId));
+        List<SharedLibraryItemDto> items = new java.util.ArrayList<>();
+
+        for (FolderDto folder : folderService.findAllByOwnerId(ownerId)) {
+            ShareLinkDto shareLink = latestFolderShareLinks.get(folder.getId());
+            if (shareLink == null) {
+                continue;
+            }
+            items.add(new SharedLibraryItemDto(shareLink, folder.getName(), "Папка"));
+        }
+
+        for (FileItemDto file : fileService.findAllByOwnerId(ownerId)) {
+            ShareLinkDto shareLink = latestFileShareLinks.get(file.getId());
+            if (shareLink == null) {
+                continue;
+            }
+            SharedLibraryItemDto libraryItem = new SharedLibraryItemDto(shareLink, file.getOriginalFilename(), "Файл");
+            libraryItem.setResourceMimeType(file.getMimeType());
+            libraryItem.setResourceSizeBytes(file.getSizeBytes());
+            libraryItem.setPreviewAvailable(file.isPreviewAvailable());
+            libraryItem.setPreviewType(file.getPreviewType());
+            items.add(libraryItem);
+        }
+
+        return items;
+    }
+
+    private void normalizeCreateDto(ShareLinkCreateDto createDto) {
+        if (createDto == null) {
+            return;
+        }
+        if (createDto.getTitle() != null) {
+            createDto.setTitle(createDto.getTitle().trim());
+        }
+        if (createDto.getPassword() != null) {
+            createDto.setPassword(createDto.getPassword().trim());
+        }
+        if (Boolean.TRUE.equals(createDto.getExpiresUnlimited())) {
+            createDto.setExpiresInHours(null);
+            return;
+        }
+        if (createDto.getExpiresInHours() != null && createDto.getExpiresInHours() <= 0) {
+            createDto.setExpiresInHours(null);
+        }
+    }
+
+    public Map<String, Long> summarizeLibraryStatuses(List<SharedLibraryItemDto> items) {
+        Map<String, Long> summary = new LinkedHashMap<>();
+        summary.put("all", 0L);
+        summary.put("active", 0L);
+        summary.put("expiring", 0L);
+        summary.put("expired", 0L);
+        summary.put("without_expiry", 0L);
+        summary.put("files", 0L);
+        summary.put("folders", 0L);
+        if (items == null || items.isEmpty()) {
+            return summary;
+        }
+
+        for (SharedLibraryItemDto item : items) {
+            summary.compute("all", (key, value) -> value == null ? 1L : value + 1L);
+            summary.compute(item.getStatusCode(), (key, value) -> value == null ? 1L : value + 1L);
+            summary.compute(item.isFolder() ? "folders" : "files", (key, value) -> value == null ? 1L : value + 1L);
+        }
+        return summary;
+    }
+
     public boolean verifyPassword(ShareLinkDto shareLink, String password) {
         if (shareLink == null) {
             return false;
@@ -259,6 +370,88 @@ public class ShareLinkService {
 
         int disabled = shareLinkRepository.disableByResource(resourceType, resourceId, ownerId);
         return disabled > 0 ? null : "Не удалось удалить публичную ссылку.";
+    }
+
+    private Comparator<SharedLibraryItemDto> buildSharedLibraryComparator(String sortMode) {
+        Comparator<SharedLibraryItemDto> foldersFirst = Comparator
+                .comparing((SharedLibraryItemDto item) -> !item.isFolder());
+        Comparator<SharedLibraryItemDto> byNameAsc = Comparator
+                .comparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()))
+                .thenComparing(item -> normalizedString(item.getShareLink() == null ? null : item.getShareLink().getToken()));
+        Comparator<SharedLibraryItemDto> byDateNewest = Comparator
+                .comparing((SharedLibraryItemDto item) -> AppTime.parseDatabaseDateTime(item.getShareLink() == null ? null : item.getShareLink().getCreatedAt()),
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+        Comparator<SharedLibraryItemDto> byDateOldest = Comparator
+                .comparing((SharedLibraryItemDto item) -> AppTime.parseDatabaseDateTime(item.getShareLink() == null ? null : item.getShareLink().getCreatedAt()),
+                        Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+        Comparator<SharedLibraryItemDto> byTypeAsc = Comparator
+                .comparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceTypeTitle()))
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+        Comparator<SharedLibraryItemDto> byExpiryAsc = Comparator
+                .comparing((SharedLibraryItemDto item) -> AppTime.parseDatabaseDateTime(item.getShareLink() == null ? null : item.getShareLink().getExpiresAt()),
+                        Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+        Comparator<SharedLibraryItemDto> byExpiryDesc = Comparator
+                .comparing((SharedLibraryItemDto item) -> AppTime.parseDatabaseDateTime(item.getShareLink() == null ? null : item.getShareLink().getExpiresAt()),
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+        Comparator<SharedLibraryItemDto> byStatusAsc = Comparator
+                .comparingInt((SharedLibraryItemDto item) -> sharedStatusWeight(item.getStatusCode()))
+                .thenComparing(byExpiryAsc)
+                .thenComparing((SharedLibraryItemDto item) -> normalizedString(item.getResourceName()));
+
+        String normalizedSortMode = sortMode == null ? "" : sortMode.trim().toLowerCase(Locale.ROOT);
+        Comparator<SharedLibraryItemDto> baseComparator = switch (normalizedSortMode) {
+            case "name_desc" -> byNameAsc.reversed();
+            case "date_oldest" -> byDateOldest;
+            case "type_asc" -> byTypeAsc;
+            case "expiry_asc", "size_asc" -> byExpiryAsc;
+            case "expiry_desc", "size_desc" -> byExpiryDesc;
+            case "status_asc" -> byStatusAsc;
+            case "date_newest" -> byDateNewest;
+            default -> byNameAsc;
+        };
+        return foldersFirst.thenComparing(baseComparator);
+    }
+
+    private String normalizeSharedStatusFilter(String value) {
+        if (value == null || value.isBlank() || "all".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "active", "expiring", "expired", "without_expiry" -> value.trim().toLowerCase(Locale.ROOT);
+            default -> null;
+        };
+    }
+
+    private String normalizeSharedTypeFilter(String value) {
+        if (value == null || value.isBlank() || "all".equalsIgnoreCase(value)) {
+            return null;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "files", "folders" -> value.trim().toLowerCase(Locale.ROOT);
+            default -> null;
+        };
+    }
+
+    private int sharedStatusWeight(String statusCode) {
+        return switch (statusCode == null ? "" : statusCode) {
+            case "expired" -> 0;
+            case "expiring" -> 1;
+            case "active" -> 2;
+            case "without_expiry" -> 3;
+            default -> 4;
+        };
+    }
+
+    private boolean containsIgnoreCase(String value, String query) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private String normalizedString(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
     }
 
 }

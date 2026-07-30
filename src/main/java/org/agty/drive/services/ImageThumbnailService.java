@@ -10,12 +10,13 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 @Service
 public class ImageThumbnailService {
 
-    private static final int THUMBNAIL_SIZE = 160;
+    private static final int THUMBNAIL_SIZE = 320;
 
     private final FileContentStorageService fileContentStorageService;
     private final FileRepositoryAdapter fileRepositoryAdapter;
@@ -33,6 +34,31 @@ public class ImageThumbnailService {
 
         try {
             BufferedImage sourceImage = ImageIO.read(new ByteArrayInputStream(content));
+            if (sourceImage == null) {
+                return false;
+            }
+
+            BufferedImage thumbnail = buildThumbnail(sourceImage);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(thumbnail, "png", outputStream);
+            fileContentStorageService.save(StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()), outputStream.toByteArray());
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public boolean generateForFile(FileItemDto fileItemDto) {
+        if (fileItemDto == null || !fileItemDto.isImagePreview() || fileItemDto.getStorageName() == null) {
+            return false;
+        }
+
+        try {
+            Path path = fileContentStorageService.resolveExistingPath(fileItemDto.getStorageName());
+            if (path == null) {
+                return false;
+            }
+            BufferedImage sourceImage = ImageIO.read(path.toFile());
             if (sourceImage == null) {
                 return false;
             }

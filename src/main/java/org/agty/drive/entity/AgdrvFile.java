@@ -49,6 +49,9 @@ public class AgdrvFile {
     @Column(name = "description", skipIfNull = true)
     private String description;
 
+    @Column(name = "expires_at", skipIfNull = true)
+    private String expiresAt;
+
     @Column(name = "preview_status")
     private String previewStatus;
 

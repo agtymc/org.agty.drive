@@ -4,17 +4,26 @@ import org.agty.drive.config.AppTime;
 import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FileUploadDto;
 import org.agty.drive.dto.FolderDto;
+import org.agty.drive.repository.ShareLinkRepository;
 import org.agty.drive.dto.UserDto;
 import org.agty.drive.repository.FileRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 @Service
 public class FileService {
 
@@ -25,21 +34,48 @@ public class FileService {
     private final FileContentStorageService fileContentStorageService;
     private final ImageThumbnailService imageThumbnailService;
     private final UserService userService;
+    private final FilenamePolicyService filenamePolicyService;
+    private final MimeTypePolicyService mimeTypePolicyService;
+    private final ExpirationPolicyService expirationPolicyService;
+    private final ShareLinkRepository shareLinkRepository;
 
     public FileService(FileRepository fileRepository,
                        FolderService folderService,
                        FileContentStorageService fileContentStorageService,
                        ImageThumbnailService imageThumbnailService,
-                       UserService userService) {
+                       UserService userService,
+                       FilenamePolicyService filenamePolicyService,
+                       MimeTypePolicyService mimeTypePolicyService,
+                       ExpirationPolicyService expirationPolicyService,
+                       ShareLinkRepository shareLinkRepository) {
         this.fileRepository = fileRepository;
         this.folderService = folderService;
         this.fileContentStorageService = fileContentStorageService;
         this.imageThumbnailService = imageThumbnailService;
         this.userService = userService;
+        this.filenamePolicyService = filenamePolicyService;
+        this.mimeTypePolicyService = mimeTypePolicyService;
+        this.expirationPolicyService = expirationPolicyService;
+        this.shareLinkRepository = shareLinkRepository;
     }
 
     public List<FileItemDto> findAllByOwnerId(Long ownerId) {
         return fileRepository.findAllByOwnerId(ownerId);
+    }
+
+    public List<FileItemDto> findMediaLibraryByOwnerId(Long ownerId,
+                                                       String query,
+                                                       String scope,
+                                                       String sortMode) {
+        String normalizedScope = scope == null ? "" : scope.trim().toLowerCase(Locale.ROOT);
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        return findAllByOwnerId(ownerId).stream()
+                .filter(file -> "photos".equals(normalizedScope) ? file.isImagePreview() : file.isVideoPreview())
+                .filter(file -> normalizedQuery.isBlank()
+                        || containsIgnoreCase(file.getOriginalFilename(), normalizedQuery)
+                        || containsIgnoreCase(file.getDescription(), normalizedQuery))
+                .sorted(buildMediaComparator(sortMode))
+                .toList();
     }
 
     public List<FileItemDto> findByOwnerIdAndFolderId(Long ownerId, Long folderId) {
@@ -64,6 +100,10 @@ public class FileService {
 
     public long countAll() {
         return fileRepository.countAll();
+    }
+
+    public long countByOwnerId(Long ownerId) {
+        return fileRepository.countByOwnerId(ownerId);
     }
 
     public List<FileItemDto> searchByOwnerId(Long ownerId,
@@ -121,8 +161,23 @@ public class FileService {
             return "Файл не выбран.";
         }
 
+        if (filenamePolicyService.normalizeFilename(multipartFile.getOriginalFilename()) == null) {
+            return "Некорректное имя файла.";
+        }
+
         if (uploadDto.getFolderId() == null || !folderExistsForOwner(ownerId, uploadDto.getFolderId())) {
             return "Папка для загрузки не найдена.";
+        }
+
+        String normalizedFilename = filenamePolicyService.normalizeFilename(multipartFile.getOriginalFilename());
+        if (fileRepository.existsByOwnerIdAndFolderIdAndOriginalFilename(ownerId, uploadDto.getFolderId(), normalizedFilename, null)
+                && !Boolean.TRUE.equals(uploadDto.getOverwriteExisting())) {
+            return "В этой директории уже есть файл с таким названием.";
+        }
+
+        String expirationError = expirationPolicyService.validateExpirationInput(uploadDto.getExpiresAt());
+        if (expirationError != null) {
+            return expirationError;
         }
 
         UserDto user = userService.findById(ownerId);
@@ -147,45 +202,143 @@ public class FileService {
         }
 
         MultipartFile multipartFile = uploadDto.getFile();
+        Path tempPath = null;
+        String finalStorageName = null;
+        boolean repositorySaved = false;
         try {
-            byte[] content = multipartFile.getBytes();
-            String originalFilename = multipartFile.getOriginalFilename();
+            String originalFilename = filenamePolicyService.normalizeFilename(multipartFile.getOriginalFilename());
             String extension = extractExtension(originalFilename);
-            String mimeType = multipartFile.getContentType();
+            String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(multipartFile.getContentType(), extension);
+            tempPath = fileContentStorageService.createTempFile();
+            String checksumSha256;
+            long actualSizeBytes = 0L;
+            MessageDigest digest = newSha256Digest();
+
+            try (InputStream inputStream = multipartFile.getInputStream();
+                 OutputStream outputStream = Files.newOutputStream(tempPath)) {
+                byte[] buffer = new byte[1024 * 1024];
+                int read;
+                while ((read = inputStream.read(buffer)) >= 0) {
+                    if (read == 0) {
+                        continue;
+                    }
+                    digest.update(buffer, 0, read);
+                    outputStream.write(buffer, 0, read);
+                    actualSizeBytes += read;
+                }
+            }
+            checksumSha256 = HexFormat.of().formatHex(digest.digest());
+
+            if (Boolean.TRUE.equals(uploadDto.getOverwriteExisting())) {
+                FileItemDto existingFile = fileRepository.findByOwnerIdAndFolderIdAndOriginalFilename(ownerId, uploadDto.getFolderId(), originalFilename);
+                if (existingFile != null) {
+                    String deleteError = deleteByIdAndOwnerId(existingFile.getId(), ownerId);
+                    if (deleteError != null) {
+                        return null;
+                    }
+                }
+            }
 
             FileItemDto fileItemDto = new FileItemDto();
             fileItemDto.setOwnerId(ownerId);
             fileItemDto.setFolderId(uploadDto.getFolderId());
             fileItemDto.setOriginalFilename(originalFilename == null || originalFilename.isBlank() ? "file" : originalFilename);
-            fileItemDto.setMimeType(mimeType == null || mimeType.isBlank() ? "application/octet-stream" : mimeType);
+            fileItemDto.setMimeType(mimeType);
             fileItemDto.setExtension(extension);
-            fileItemDto.setSizeBytes(multipartFile.getSize());
-            fileItemDto.setChecksumSha256(calculateSha256(content));
-            fileItemDto.setStorageName(StoragePathSupport.buildStorageName(
+            fileItemDto.setSizeBytes(actualSizeBytes);
+            fileItemDto.setChecksumSha256(checksumSha256);
+            finalStorageName = StoragePathSupport.buildStorageName(
                     fileItemDto.getChecksumSha256(),
                     extension,
                     AppTime.today()
-            ));
+            );
+            fileItemDto.setStorageName(finalStorageName);
             fileItemDto.setDescription(uploadDto.getDescription());
+            fileItemDto.setExpiresAt(expirationPolicyService.normalizeExpirationInput(uploadDto.getExpiresAt()));
             fileItemDto.setPreviewStatus("NONE");
             fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
             fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
 
-            FileItemDto saved = fileRepository.save(fileItemDto);
+            fileContentStorageService.moveIntoStorage(tempPath, finalStorageName);
+            tempPath = null;
+
+            FileItemDto saved = saveUploadedFileRecord(
+                    fileItemDto,
+                    ownerId,
+                    uploadDto.getFolderId(),
+                    originalFilename,
+                    Boolean.TRUE.equals(uploadDto.getOverwriteExisting())
+            );
             if (saved == null || saved.getId() == null) {
+                fileContentStorageService.delete(finalStorageName);
                 return null;
             }
+            repositorySaved = true;
 
-            fileContentStorageService.save(saved.getStorageName(), content);
             if (saved.isImagePreview()) {
-                saved.setPreviewStatus(imageThumbnailService.generateForFile(saved, content) ? "READY" : "FAILED");
+                saved.setPreviewStatus(imageThumbnailService.generateForFile(saved) ? "READY" : "FAILED");
                 FileItemDto updated = fileRepository.save(saved);
                 return updated == null ? saved : updated;
             }
             return saved;
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } catch (RuntimeException e) {
+            if (finalStorageName != null && !repositorySaved) {
+                try {
+                    fileContentStorageService.delete(finalStorageName);
+                } catch (RuntimeException ignored) {
+                }
+            }
+            throw e;
+        } finally {
+            if (tempPath != null) {
+                try {
+                    fileContentStorageService.deleteTempFile(tempPath);
+                } catch (RuntimeException ignored) {
+                }
+            }
         }
+    }
+
+    private FileItemDto saveUploadedFileRecord(FileItemDto fileItemDto,
+                                               Long ownerId,
+                                               Long folderId,
+                                               String originalFilename,
+                                               boolean overwriteExisting) {
+        try {
+            return fileRepository.save(fileItemDto);
+        } catch (RuntimeException exception) {
+            if (!overwriteExisting || !isFileNameUniqueConflict(exception)) {
+                throw exception;
+            }
+
+            FileItemDto existingFile = fileRepository.findByOwnerIdAndFolderIdAndOriginalFilename(ownerId, folderId, originalFilename);
+            if (existingFile == null) {
+                throw exception;
+            }
+
+            String deleteError = deleteByIdAndOwnerId(existingFile.getId(), ownerId);
+            if (deleteError != null) {
+                throw new RuntimeException(deleteError, exception);
+            }
+
+            return fileRepository.save(fileItemDto);
+        }
+    }
+
+    private boolean isFileNameUniqueConflict(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof SQLException sqlException) {
+                if ("23505".equals(sqlException.getSQLState())) {
+                    String message = sqlException.getMessage();
+                    return message != null && message.contains("agdrv_files_folder_name_uq");
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public String deleteByIdAndOwnerId(Long id, Long ownerId) {
@@ -195,6 +348,7 @@ public class FileService {
         }
 
         String storageName = fileItemDto.getStorageName();
+        shareLinkRepository.disableAllByResource("FILE", fileItemDto.getId());
         fileItemDto.setDeletedAt(AppTime.nowForDatabase());
         FileItemDto saved = fileRepository.save(fileItemDto);
         if (saved == null) {
@@ -214,7 +368,7 @@ public class FileService {
             return "Файл не найден.";
         }
 
-        String normalizedName = normalizeFilename(newName);
+        String normalizedName = filenamePolicyService.normalizeFilename(newName);
         if (normalizedName == null) {
             return "Введите название файла.";
         }
@@ -253,6 +407,46 @@ public class FileService {
         return fileRepository.save(fileItemDto) == null ? "Не удалось переместить файл." : null;
     }
 
+    public List<FileItemDto> findExpiredActiveFiles() {
+        return fileRepository.findExpiredActiveFiles();
+    }
+
+    public String updateExpirationByIdAndOwnerId(Long id, Long ownerId, String expiresAtInput, boolean expiresUnlimited) {
+        FileItemDto fileItemDto = findByIdAndOwnerId(id, ownerId);
+        if (fileItemDto == null) {
+            return "Файл не найден.";
+        }
+
+        if (expiresUnlimited) {
+            fileItemDto.setExpiresAt(null);
+        } else {
+            String expirationError = expirationPolicyService.validateExpirationInput(expiresAtInput);
+            if (expirationError != null) {
+                return expirationError;
+            }
+            fileItemDto.setExpiresAt(expirationPolicyService.normalizeExpirationInput(expiresAtInput));
+        }
+
+        return fileRepository.save(fileItemDto) == null ? "Не удалось обновить свойства файла." : null;
+    }
+
+    public java.util.Map<Long, String> buildExistingFileNamesByFolderId(Long ownerId) {
+        java.util.Map<Long, java.util.LinkedHashSet<String>> grouped = new java.util.LinkedHashMap<>();
+        for (FileItemDto file : findAllByOwnerId(ownerId)) {
+            if (file.getFolderId() == null || file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()) {
+                continue;
+            }
+            grouped.computeIfAbsent(file.getFolderId(), key -> new java.util.LinkedHashSet<>())
+                    .add(file.getOriginalFilename().trim().toLowerCase(java.util.Locale.ROOT));
+        }
+
+        java.util.Map<Long, String> result = new java.util.LinkedHashMap<>();
+        for (var entry : grouped.entrySet()) {
+            result.put(entry.getKey(), String.join("\n", entry.getValue()));
+        }
+        return result;
+    }
+
     private boolean folderExistsForOwner(Long ownerId, Long folderId) {
         if (folderId == null) {
             return true;
@@ -274,21 +468,61 @@ public class FileService {
         return originalFilename.substring(dotIndex + 1).toLowerCase();
     }
 
-    private String normalizeFilename(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        return normalized.isBlank() ? null : normalized;
-    }
-
-    private String calculateSha256(byte[] content) {
+    private MessageDigest newSha256Digest() {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(content));
+            return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Comparator<FileItemDto> buildMediaComparator(String sortMode) {
+        Comparator<FileItemDto> byNameAsc = Comparator
+                .comparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<FileItemDto> byDateNewest = Comparator
+                .comparing((FileItemDto file) -> parseDateTime(file.getCreatedAt()), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.reverseOrder()));
+        Comparator<FileItemDto> byDateOldest = Comparator
+                .comparing((FileItemDto file) -> parseDateTime(file.getCreatedAt()), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<FileItemDto> bySizeDesc = Comparator
+                .comparing((FileItemDto file) -> file.getSizeBytes() == null ? 0L : file.getSizeBytes(), Comparator.reverseOrder())
+                .thenComparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.reverseOrder()));
+        Comparator<FileItemDto> bySizeAsc = Comparator
+                .comparing((FileItemDto file) -> file.getSizeBytes() == null ? 0L : file.getSizeBytes())
+                .thenComparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+        Comparator<FileItemDto> byTypeAsc = Comparator
+                .comparing((FileItemDto file) -> normalizedString(file.getExtension()))
+                .thenComparing((FileItemDto file) -> normalizedString(file.getOriginalFilename()))
+                .thenComparing(FileItemDto::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
+        String normalizedSortMode = sortMode == null ? "" : sortMode.trim().toLowerCase(Locale.ROOT);
+        return switch (normalizedSortMode) {
+            case "name_desc" -> byNameAsc.reversed();
+            case "date_oldest" -> byDateOldest;
+            case "size_desc" -> bySizeDesc;
+            case "size_asc" -> bySizeAsc;
+            case "type_asc" -> byTypeAsc;
+            case "date_newest" -> byDateNewest;
+            default -> byNameAsc;
+        };
+    }
+
+    private boolean containsIgnoreCase(String value, String query) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private String normalizedString(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        return AppTime.parseDatabaseDateTime(value);
     }
 
 }

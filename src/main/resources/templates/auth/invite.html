@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${title}">AGTY/DRIVE Invite</title>
+    <title th:text="${applicationInfo.pageTitle(pageTitle)}">Инвайт :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
     <link rel="stylesheet" href="/css/app.css">
 </head>
 <body data-theme="dark">
 <div class="auth-view">
     <div class="auth-card">
-        <div class="brand-logo">AGTY/DRIVE</div>
-        <div class="brand-subtitle">Invite registration</div>
+        <div class="brand-logo" th:text="${applicationTitle}">AGTY/DRIVE</div>
+        <div class="brand-subtitle" th:text="${applicationAbout}">Secure file exchange workspace</div>
         <h1>Регистрация по инвайту</h1>
 
         <div th:if="${invite != null}" class="info-list" style="margin-bottom:20px;">

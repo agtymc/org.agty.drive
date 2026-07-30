@@ -58,7 +58,51 @@ public class UserRepository {
 
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
             SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : UserConverter.rowToDto(row);
+            return mapUser(row);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public UserDto findByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+
+        String query = """
+                SELECT
+                    u.id,
+                    u.created_at,
+                    u.updated_at,
+                    u.login,
+                    u.email,
+                    u.password_hash,
+                    u.role_code,
+                    role_dic.title AS role_title,
+                    u.status_code,
+                    status_dic.title AS status_title,
+                    u.first_name,
+                    u.last_name,
+                    u.middle_name,
+                    u.display_name,
+                    u.created_by,
+                    u.last_login_at,
+                    u.storage_quota_bytes,
+                    u.two_factor_email_enabled,
+                    u.two_factor_totp_enabled,
+                    u.two_factor_totp_secret,
+                    u.two_factor_totp_created_at,
+                    u.two_factor_email_code_hash,
+                    u.two_factor_email_code_expires_at
+                FROM public.agdrv_users u
+                LEFT JOIN public.agdrv_dic_users_roles role_dic ON role_dic.code = u.role_code
+                LEFT JOIN public.agdrv_dic_users_statuses status_dic ON status_dic.code = u.status_code
+                WHERE lower(u.email) = lower('%s')
+                """.formatted(email.replace("'", "''"));
+
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row = sql.sql().fetch(query);
+            return mapUser(row);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -102,7 +146,7 @@ public class UserRepository {
 
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
             SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : UserConverter.rowToDto(row);
+            return mapUser(row);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -217,5 +261,12 @@ public class UserRepository {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private UserDto mapUser(SqlRow row) {
+        if (row == null || row.getLong("id") == null) {
+            return null;
+        }
+        return UserConverter.rowToDto(row);
     }
 }

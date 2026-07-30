@@ -4,8 +4,10 @@ import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FolderDto;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -16,25 +18,33 @@ public class FolderArchiveService {
     private final FolderService folderService;
     private final FileService fileService;
     private final FileContentStorageService fileContentStorageService;
+    private final FilenamePolicyService filenamePolicyService;
 
     public FolderArchiveService(FolderService folderService,
                                 FileService fileService,
-                                FileContentStorageService fileContentStorageService) {
+                                FileContentStorageService fileContentStorageService,
+                                FilenamePolicyService filenamePolicyService) {
         this.folderService = folderService;
         this.fileService = fileService;
         this.fileContentStorageService = fileContentStorageService;
+        this.filenamePolicyService = filenamePolicyService;
     }
 
-    public byte[] buildFolderArchive(FolderDto rootFolder) {
+    public Path buildFolderArchiveTempFile(FolderDto rootFolder) {
         if (rootFolder == null || rootFolder.getId() == null || rootFolder.getOwnerId() == null) {
             return null;
         }
 
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-             ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
-            addFolder(zipOutputStream, rootFolder.getOwnerId(), rootFolder, sanitizeFolderName(rootFolder.getName()) + "/");
-            zipOutputStream.finish();
-            return outputStream.toByteArray();
+        try {
+            Path archivePath = Files.createTempFile("agty-drive-folder-", ".zip");
+            try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(archivePath))) {
+                addFolder(zipOutputStream, rootFolder.getOwnerId(), rootFolder, filenamePolicyService.normalizeArchiveEntryName(rootFolder.getName(), "folder") + "/");
+                zipOutputStream.finish();
+            } catch (IOException exception) {
+                Files.deleteIfExists(archivePath);
+                throw exception;
+            }
+            return archivePath;
         } catch (IOException exception) {
             throw new RuntimeException("Failed to build folder archive", exception);
         }
@@ -53,34 +63,23 @@ public class FolderArchiveService {
             if (file == null || file.getStorageName() == null || file.getOriginalFilename() == null) {
                 continue;
             }
-            byte[] content = fileContentStorageService.read(file.getStorageName());
-            if (content == null) {
+            try (InputStream contentStream = fileContentStorageService.openStream(file.getStorageName())) {
+                if (contentStream == null) {
+                    continue;
+                }
+
+                ZipEntry fileEntry = new ZipEntry(pathPrefix + filenamePolicyService.normalizeArchiveEntryName(file.getOriginalFilename(), "file"));
+                zipOutputStream.putNextEntry(fileEntry);
+                contentStream.transferTo(zipOutputStream);
+                zipOutputStream.closeEntry();
+            } catch (IOException exception) {
                 continue;
             }
-
-            ZipEntry fileEntry = new ZipEntry(pathPrefix + sanitizeFileName(file.getOriginalFilename()));
-            zipOutputStream.putNextEntry(fileEntry);
-            zipOutputStream.write(content);
-            zipOutputStream.closeEntry();
         }
 
         List<FolderDto> folders = folderService.findByOwnerIdAndParentId(ownerId, folder.getId());
         for (FolderDto childFolder : folders) {
-            addFolder(zipOutputStream, ownerId, childFolder, pathPrefix + sanitizeFolderName(childFolder.getName()) + "/");
+            addFolder(zipOutputStream, ownerId, childFolder, pathPrefix + filenamePolicyService.normalizeArchiveEntryName(childFolder.getName(), "folder") + "/");
         }
-    }
-
-    private String sanitizeFolderName(String value) {
-        if (value == null || value.isBlank()) {
-            return "folder";
-        }
-        return value.replace("\\", "_").replace("/", "_").trim();
-    }
-
-    private String sanitizeFileName(String value) {
-        if (value == null || value.isBlank()) {
-            return "file";
-        }
-        return value.replace("\\", "_").replace("/", "_").trim();
     }
 }

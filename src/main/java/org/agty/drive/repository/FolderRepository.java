@@ -25,77 +25,33 @@ public class FolderRepository {
     }
 
     public List<FolderDto> findAllByOwnerId(Long ownerId) {
-        List<FolderDto> result = new ArrayList<>();
         if (ownerId == null) {
-            return result;
+            return List.of();
         }
 
-        String query = """
-                SELECT
-                    id,
-                    created_at,
-                    updated_at,
-                    deleted_at,
-                    owner_id,
-                    parent_id,
-                    name,
-                    path_key,
-                    description,
-                    sort_order
-                FROM public.agdrv_folders
+        String query = selectBase() + """
                 WHERE owner_id = %d
                   AND deleted_at IS NULL
                 ORDER BY path_key ASC, sort_order ASC, name ASC
                 """.formatted(ownerId);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
-                result.add(FolderConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(query);
     }
 
     public List<FolderDto> findByOwnerIdAndParentId(Long ownerId, Long parentId) {
-        List<FolderDto> result = new ArrayList<>();
         if (ownerId == null) {
-            return result;
+            return List.of();
         }
 
         String parentCondition = parentId == null ? "parent_id IS NULL" : "parent_id = %d".formatted(parentId);
-        String query = """
-                SELECT
-                    id,
-                    created_at,
-                    updated_at,
-                    deleted_at,
-                    owner_id,
-                    parent_id,
-                    name,
-                    path_key,
-                    description,
-                    sort_order
-                FROM public.agdrv_folders
+        String query = selectBase() + """
                 WHERE owner_id = %d
                   AND %s
                   AND deleted_at IS NULL
                 ORDER BY sort_order ASC, name ASC
                 """.formatted(ownerId, parentCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
-                result.add(FolderConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(query);
     }
 
     public List<FolderDto> searchByOwnerId(Long ownerId,
@@ -126,13 +82,7 @@ public class FolderRepository {
                   %s
                 """.formatted(ownerId, scopeCondition, queryCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(sqlQuery);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchCount(sqlQuery);
     }
 
     public List<FolderDto> searchByOwnerId(Long ownerId,
@@ -143,27 +93,14 @@ public class FolderRepository {
                                            String sortMode,
                                            int offset,
                                            int limit) {
-        List<FolderDto> result = new ArrayList<>();
         if (ownerId == null || limit <= 0) {
-            return result;
+            return List.of();
         }
 
         String queryCondition = buildFolderQueryCondition(query);
         String scopeCondition = buildFolderScopeCondition(currentFolderId, currentFolderPath, scope);
         String orderBy = buildFolderOrderBy(sortMode);
-        String sqlQuery = """
-                SELECT
-                    id,
-                    created_at,
-                    updated_at,
-                    deleted_at,
-                    owner_id,
-                    parent_id,
-                    name,
-                    path_key,
-                    description,
-                    sort_order
-                FROM public.agdrv_folders
+        String sqlQuery = selectBase() + """
                 WHERE owner_id = %d
                   AND deleted_at IS NULL
                   AND %s
@@ -173,16 +110,7 @@ public class FolderRepository {
                 LIMIT %d
                 """.formatted(ownerId, scopeCondition, queryCondition, orderBy, Math.max(0, offset), limit);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row;
-            while ((row = sql.sql().list(Arguments.builder().setQuery(sqlQuery))) != null) {
-                result.add(FolderConverter.rowToDto(row));
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return result;
+        return findMany(sqlQuery);
     }
 
     public long countByOwnerId(Long ownerId) {
@@ -197,13 +125,7 @@ public class FolderRepository {
                   AND deleted_at IS NULL
                 """.formatted(ownerId);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchCount(query);
     }
 
     public long countAll() {
@@ -213,13 +135,7 @@ public class FolderRepository {
                 WHERE deleted_at IS NULL
                 """;
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            Long total = row == null ? null : row.getLong("total");
-            return total == null ? 0L : total;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return fetchCount(query);
     }
 
     public FolderDto save(FolderDto folderDto) {
@@ -247,29 +163,12 @@ public class FolderRepository {
         }
 
         String ownerCondition = ownerId == null ? "" : " AND owner_id = %d".formatted(ownerId);
-        String query = """
-                SELECT
-                    id,
-                    created_at,
-                    updated_at,
-                    deleted_at,
-                    owner_id,
-                    parent_id,
-                    name,
-                    path_key,
-                    description,
-                    sort_order
-                FROM public.agdrv_folders
+        String query = selectBase() + """
                 WHERE id = %d
                 %s
                 """.formatted(id, ownerCondition);
 
-        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
-            SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : FolderConverter.rowToDto(row);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return findOne(query);
     }
 
     public boolean existsByOwnerIdAndParentIdAndName(Long ownerId, Long parentId, String name) {
@@ -294,10 +193,47 @@ public class FolderRepository {
                   %s
                 """.formatted(ownerId, parentCondition, escapedName, excludeCondition);
 
+        return fetchCount(query) > 0;
+    }
+
+    public List<FolderDto> findExpiredActiveFolders() {
+        String query = selectBase() + """
+                WHERE deleted_at IS NULL
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= NOW()
+                ORDER BY path_key ASC, id ASC
+                """;
+
+        return findMany(query);
+    }
+
+    private List<FolderDto> findMany(String query) {
+        List<FolderDto> result = new ArrayList<>();
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row;
+            while ((row = sql.sql().list(Arguments.builder().setQuery(query))) != null) {
+                result.add(FolderConverter.rowToDto(row));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return result;
+    }
+
+    private FolderDto findOne(String query) {
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
+            SqlRow row = sql.sql().fetch(query);
+            return row == null ? null : FolderConverter.rowToDto(row);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private long fetchCount(String query) {
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
             SqlRow row = sql.sql().fetch(query);
             Long total = row == null ? null : row.getLong("total");
-            return total != null && total > 0;
+            return total == null ? 0L : total;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -340,5 +276,23 @@ public class FolderRepository {
             return "created_at ASC, lower(name) ASC, id ASC";
         }
         return "lower(name) ASC, id ASC";
+    }
+
+    private String selectBase() {
+        return """
+                SELECT
+                    id,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    owner_id,
+                    parent_id,
+                    name,
+                    path_key,
+                    description,
+                    expires_at,
+                    sort_order
+                FROM public.agdrv_folders
+                """;
     }
 }

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${applicationInfo.pageTitle(pageTitle)}">Регистрация :: AGTY/DRIVE</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v1">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-theme="dark">
+<div class="auth-view">
+    <div class="auth-card">
+        <div class="brand-logo" th:text="${applicationTitle}">AGTY/DRIVE</div>
+        <div class="brand-subtitle" th:text="${applicationAbout}">Secure file exchange workspace</div>
+        <h1>Регистрация</h1>
+        <p>Создайте стандартную пользовательскую учетную запись для входа в личное файловое пространство.</p>
+
+        <div class="error-text" th:if="${registrationError}" th:text="${registrationError}">Ошибка</div>
+
+        <form class="auth-form" method="post" th:if="${openRegistrationEnabled}" th:action="@{/register}" th:object="${openRegistrationDto}">
+            <label>
+                Логин
+                <input type="text" th:field="*{login}" maxlength="120" autocomplete="username" required>
+            </label>
+            <label>
+                E-mail
+                <input type="email" th:field="*{email}" maxlength="255" autocomplete="email">
+            </label>
+            <label>
+                Имя
+                <input type="text" th:field="*{displayName}" maxlength="255" autocomplete="name">
+            </label>
+            <label>
+                Пароль
+                <input type="password" th:field="*{password}" minlength="8" autocomplete="new-password" required>
+            </label>
+            <label>
+                Подтверждение пароля
+                <input type="password" th:field="*{confirmPassword}" minlength="8" autocomplete="new-password" required>
+            </label>
+            <div class="auth-form-actions">
+                <a class="ghost-link" th:href="@{/login}">Ко входу</a>
+                <button class="action-primary" type="submit">Зарегистрироваться</button>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

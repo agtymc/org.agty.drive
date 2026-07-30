@@ -4,9 +4,12 @@ import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FileUploadDto;
 import org.agty.drive.dto.FolderDto;
 import org.agty.drive.dto.ShareLinkCreateDto;
+import org.agty.drive.dto.ShareLinkDto;
 import org.agty.drive.dto.UserDto;
+import org.agty.drive.repository.ShareLinkRepository;
 import org.agty.drive.security.service.DriveUserDetails;
 import org.agty.drive.support.IntegrationTestBootstrap;
+import org.agty.drive.services.CollaborativeAccessService;
 import org.agty.drive.services.FileService;
 import org.agty.drive.services.FolderService;
 import org.agty.drive.services.ShareLinkService;
@@ -28,8 +31,10 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -60,7 +65,13 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
     private ShareLinkService shareLinkService;
 
     @Autowired
+    private ShareLinkRepository shareLinkRepository;
+
+    @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private CollaborativeAccessService collaborativeAccessService;
 
     @Test
     void shouldUploadAndDownloadFileForAuthorizedUser() throws Exception {
@@ -104,6 +115,26 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
     }
 
     @Test
+    void shouldDownloadFolderArchiveForAuthorizedUser() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "archive-folder-" + UUID.randomUUID());
+        createFile(user, folder, "inside.txt", "archive payload");
+
+        var result = mockMvc.perform(get("/cabinet/folders/{id}/download", folder.getId())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString(".zip")))
+                .andReturn();
+
+        byte[] body = result.getResponse().getContentAsByteArray();
+        assertTrue(body.length > 3);
+        assertEquals('P', body[0]);
+        assertEquals('K', body[1]);
+    }
+
+    @Test
     void shouldRenderShareDeleteConfirmationModal() throws Exception {
         UserDto user = userService.findByLogin("admin");
         assertNotNull(user);
@@ -114,6 +145,146 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-modal=\"share-delete-modal\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Удалить ссылку?")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Доступ по ней сразу прекратится.")));
+    }
+
+    @Test
+    void shouldRenderSidebarDirectoryTreeAndRecentActivity() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto rootFolder = createFolder(user.getId(), null, "sidebar-root-" + UUID.randomUUID());
+        FolderDto childFolder = createFolder(user.getId(), rootFolder, "sidebar-child-" + UUID.randomUUID());
+        createFile(user, childFolder, "sidebar-log.txt", "sidebar payload");
+
+        mockMvc.perform(get("/cabinet")
+                        .param("folderId", String.valueOf(childFolder.getId()))
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Мой диск")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(rootFolder.getName())))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(childFolder.getName())))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Назад")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("sidebar-log.txt")));
+    }
+
+    @Test
+    void shouldRenderPhotosLibraryView() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "photos-" + UUID.randomUUID());
+        String imageName = "library-photo-" + UUID.randomUUID() + ".png";
+        String noteName = "library-note-" + UUID.randomUUID() + ".txt";
+        createImageFile(user, folder, imageName);
+        createFile(user, folder, noteName, "text payload");
+
+        var result = mockMvc.perform(get("/cabinet/photos")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Фото")))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> files = (List<FileItemDto>) result.getModelAndView().getModel().get("files");
+        assertNotNull(files);
+        assertTrue(files.stream().anyMatch(file -> imageName.equals(file.getOriginalFilename())));
+        assertFalse(files.stream().anyMatch(file -> noteName.equals(file.getOriginalFilename())));
+    }
+
+    @Test
+    void shouldRenderSharedLibraryView() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "shared-" + UUID.randomUUID());
+        FileItemDto file = createFile(user, folder, "shared-file-" + UUID.randomUUID() + ".txt", "shared payload");
+
+        ShareLinkCreateDto createDto = new ShareLinkCreateDto();
+        createDto.setResourceType("FILE");
+        createDto.setResourceId(file.getId());
+        createDto.setAllowPreview(true);
+        createDto.setAllowDownload(true);
+        createDto.setExpiresUnlimited(true);
+        ShareLinkDto shareLink = shareLinkService.createShareLink(user.getId(), createDto);
+        assertNotNull(shareLink);
+
+        mockMvc.perform(get("/cabinet/shared")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Открытый доступ")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Скоро истекут")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Без срока")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(file.getOriginalFilename())))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/s/" + shareLink.getToken())));
+    }
+
+    @Test
+    void shouldHideSharedItemsThatDoNotBelongToCurrentUser() throws Exception {
+        UserDto admin = userService.findByLogin("admin");
+        assertNotNull(admin);
+
+        UserDto otherUser = createRegularUser("shared-owner-" + UUID.randomUUID());
+        FolderDto otherFolder = createFolder(otherUser.getId(), null, "foreign-shared-" + UUID.randomUUID());
+        FileItemDto otherFile = createFile(otherUser, otherFolder, "foreign-shared-file-" + UUID.randomUUID() + ".txt", "payload");
+
+        ShareLinkDto foreignShare = new ShareLinkDto();
+        foreignShare.setCreatedBy(admin.getId());
+        foreignShare.setToken("foreign" + UUID.randomUUID().toString().replace("-", ""));
+        foreignShare.setResourceType("FILE");
+        foreignShare.setResourceId(otherFile.getId());
+        foreignShare.setTitle(otherFile.getOriginalFilename());
+        foreignShare.setAllowDownload(true);
+        foreignShare.setAllowPreview(true);
+        foreignShare.setIsEnabled(true);
+        foreignShare.setDownloadCount(0L);
+        assertNotNull(shareLinkRepository.save(foreignShare));
+
+        mockMvc.perform(get("/cabinet/shared")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(admin))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(otherFile.getOriginalFilename()))));
+    }
+
+    @Test
+    void shouldRenderProfileUsingCabinetShell() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        mockMvc.perform(get("/cabinet/profile")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("AGTY/DRIVE")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Профиль")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Файлы")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Смена пароля")));
+    }
+
+    @Test
+    void shouldRenderEmptyDiskStateOnlyForCompletelyEmptyFilesSection() throws Exception {
+        UserDto user = createRegularUser("empty-disk-" + UUID.randomUUID());
+        assertNotNull(user);
+
+        mockMvc.perform(get("/cabinet")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Диск пока пуст")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Создайте папку или загрузите первый файл, чтобы начать работу.")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Папка пока пуста"))));
+    }
+
+    @Test
+    void shouldRenderEmptyFolderStateInsideFilesSection() throws Exception {
+        UserDto user = createRegularUser("empty-folder-" + UUID.randomUUID());
+        assertNotNull(user);
+        FolderDto folder = createFolder(user.getId(), null, "empty-folder-view-" + UUID.randomUUID());
+
+        mockMvc.perform(get("/cabinet")
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Папка пока пуста")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Загрузите файлы или создайте подпапку внутри этой директории.")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Создайте папку или загрузите первый файл, чтобы начать работу."))));
     }
 
     @Test
@@ -375,24 +546,32 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
         createFile(user, folder, alphaName, "alpha");
         createFile(user, folder, zetaName, "zeta");
 
-        String sortedHtml = mockMvc.perform(get("/cabinet")
+        var sortedResult = mockMvc.perform(get("/cabinet")
                         .param("folderId", String.valueOf(folder.getId()))
                         .param("sort", "name_desc")
                         .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
 
-        assertTrue(sortedHtml.indexOf(zetaName) < sortedHtml.indexOf(alphaName));
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> sortedFiles = (List<FileItemDto>) sortedResult.getModelAndView().getModel().get("files");
+        assertNotNull(sortedFiles);
+        assertEquals(2, sortedFiles.size());
+        assertEquals(zetaName, sortedFiles.get(0).getOriginalFilename());
+        assertEquals(alphaName, sortedFiles.get(1).getOriginalFilename());
 
-        mockMvc.perform(get("/cabinet")
+        var filteredResult = mockMvc.perform(get("/cabinet")
                         .param("folderId", String.valueOf(folder.getId()))
                         .param("q", zetaName)
                         .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(zetaName)))
-                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(alphaName))));
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> filteredFiles = (List<FileItemDto>) filteredResult.getModelAndView().getModel().get("files");
+        assertNotNull(filteredFiles);
+        assertEquals(1, filteredFiles.size());
+        assertEquals(zetaName, filteredFiles.get(0).getOriginalFilename());
     }
 
     @Test
@@ -405,31 +584,35 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
             createFile(user, folder, "page-item-%02d-%s.txt".formatted(i, UUID.randomUUID()), "payload-" + i);
         }
 
-        String pageOneHtml = mockMvc.perform(get("/cabinet")
+        var pageOneResult = mockMvc.perform(get("/cabinet")
                         .param("folderId", String.valueOf(folder.getId()))
                         .param("size", "20")
                         .param("page", "1")
                         .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
 
-        String pageTwoHtml = mockMvc.perform(get("/cabinet")
+        var pageTwoResult = mockMvc.perform(get("/cabinet")
                         .param("folderId", String.valueOf(folder.getId()))
                         .param("size", "20")
                         .param("page", "2")
                         .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
 
-        assertTrue(pageOneHtml.contains("page-item-00-"));
-        assertTrue(pageOneHtml.contains("page-item-19-"));
-        assertTrue(!pageOneHtml.contains("page-item-20-"));
-        assertTrue(pageTwoHtml.contains("page-item-20-"));
-        assertTrue(pageTwoHtml.contains("page-item-21-"));
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> pageOneFiles = (List<FileItemDto>) pageOneResult.getModelAndView().getModel().get("files");
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> pageTwoFiles = (List<FileItemDto>) pageTwoResult.getModelAndView().getModel().get("files");
+        assertNotNull(pageOneFiles);
+        assertNotNull(pageTwoFiles);
+        assertEquals(20, pageOneFiles.size());
+        assertEquals(2, pageTwoFiles.size());
+        assertTrue(pageOneFiles.stream().anyMatch(file -> file.getOriginalFilename().contains("page-item-00-")));
+        assertTrue(pageOneFiles.stream().anyMatch(file -> file.getOriginalFilename().contains("page-item-19-")));
+        assertFalse(pageOneFiles.stream().anyMatch(file -> file.getOriginalFilename().contains("page-item-20-")));
+        assertTrue(pageTwoFiles.stream().anyMatch(file -> file.getOriginalFilename().contains("page-item-20-")));
+        assertTrue(pageTwoFiles.stream().anyMatch(file -> file.getOriginalFilename().contains("page-item-21-")));
     }
 
     @Test
@@ -443,18 +626,22 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
         createFile(user, fileFolder, "aaa-file-" + UUID.randomUUID() + ".txt", "a");
         createFile(user, fileFolder, "bbb-file-" + UUID.randomUUID() + ".txt", "b");
 
-        String html = mockMvc.perform(get("/cabinet")
+        var result = mockMvc.perform(get("/cabinet")
                         .param("sort", "name_asc")
                         .param("size", "2")
                         .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andReturn();
 
-        assertTrue(html.contains("aaa-folder-"));
-        assertTrue(html.contains("bbb-folder-"));
-        assertTrue(!html.contains("aaa-file-"));
+        @SuppressWarnings("unchecked")
+        List<FolderDto> folders = (List<FolderDto>) result.getModelAndView().getModel().get("folders");
+        @SuppressWarnings("unchecked")
+        List<FileItemDto> files = (List<FileItemDto>) result.getModelAndView().getModel().get("files");
+        assertNotNull(folders);
+        assertNotNull(files);
+        assertTrue(folders.stream().anyMatch(folder -> folder.getName().startsWith("aaa-folder-")));
+        assertTrue(folders.stream().anyMatch(folder -> folder.getName().startsWith("bbb-folder-")));
+        assertTrue(files.isEmpty());
     }
 
     @Test
@@ -576,6 +763,7 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
 
         var shareLink = shareLinkService.findLatestFileShareLink(file.getId());
         assertNotNull(shareLink);
+        assertTrue(shareLink.isWithoutExpiry());
 
         mockMvc.perform(get("/cabinet")
                         .param("folderId", String.valueOf(folder.getId()))
@@ -610,6 +798,212 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
         assertTrue(unchangedFolder.getParentId() == null);
     }
 
+    @Test
+    void shouldReturnRenameModalWithStateWhenValidationFails() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "rename-error-folder-" + UUID.randomUUID());
+        FileItemDto file = createFile(user, folder, "rename-error-" + UUID.randomUUID() + ".txt", "payload");
+
+        mockMvc.perform(post("/cabinet/items/rename")
+                        .param("resourceType", "FILE")
+                        .param("resourceId", String.valueOf(file.getId()))
+                        .param("newName", "")
+                        .param("currentFolderId", String.valueOf(folder.getId()))
+                        .param("view", "grid")
+                        .param("sort", "name_desc")
+                        .param("q", "rename-state")
+                        .param("scope", "tree")
+                        .param("page", "2")
+                        .param("size", "50")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Введите новое название.")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-item-open-modal=\"item-rename-modal\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"rename-state\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"grid\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"50\"")));
+    }
+
+    @Test
+    void shouldReturnMoveModalWithStateWhenDomainValidationFails() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto rootFolder = createFolder(user.getId(), null, "move-root-" + UUID.randomUUID());
+        FolderDto childFolder = createFolder(user.getId(), rootFolder, "move-child-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/cabinet/items/move")
+                        .param("resourceType", "FOLDER")
+                        .param("resourceId", String.valueOf(rootFolder.getId()))
+                        .param("targetFolderId", String.valueOf(childFolder.getId()))
+                        .param("view", "grid")
+                        .param("sort", "size_desc")
+                        .param("q", "move-state")
+                        .param("scope", "all")
+                        .param("page", "3")
+                        .param("size", "100")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Нельзя переместить папку в дочернюю директорию.")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-item-open-modal=\"item-move-modal\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"move-state\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"grid\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"100\"")));
+    }
+
+    @Test
+    void shouldReturnShareErrorAndKeepStateWhenShareValidationFails() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "share-error-folder-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/cabinet/shares")
+                        .param("currentFolderId", String.valueOf(folder.getId()))
+                        .param("resourceType", "FILE")
+                        .param("resourceId", "999999999")
+                        .param("view", "grid")
+                        .param("sort", "name_desc")
+                        .param("q", "share-error")
+                        .param("scope", "tree")
+                        .param("page", "2")
+                        .param("size", "50")
+                        .param("allowPreview", "true")
+                        .param("allowDownload", "true")
+                        .param("expiresUnlimited", "true")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Не удалось создать публичную ссылку. Проверьте тип ресурса и данные формы.")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"share-error\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"grid\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"50\"")));
+    }
+
+    @Test
+    void shouldPreserveStateWhenBulkOperationsHaveNoSelection() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "bulk-empty-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/cabinet/items/bulk/delete")
+                        .param("currentFolderId", String.valueOf(folder.getId()))
+                        .param("view", "grid")
+                        .param("sort", "name_desc")
+                        .param("q", "bulk-empty-delete")
+                        .param("scope", "tree")
+                        .param("page", "4")
+                        .param("size", "50")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cabinet?folderId=" + folder.getId() + "&view=grid&sort=name_desc&q=bulk-empty-delete&scope=tree&page=4&size=50"));
+
+        mockMvc.perform(post("/cabinet/items/bulk/move")
+                        .param("currentFolderId", String.valueOf(folder.getId()))
+                        .param("view", "grid")
+                        .param("sort", "size_desc")
+                        .param("q", "bulk-empty-move")
+                        .param("scope", "all")
+                        .param("page", "5")
+                        .param("size", "100")
+                        .param("targetFolderId", String.valueOf(folder.getId()))
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cabinet?folderId=" + folder.getId() + "&view=grid&sort=size_desc&q=bulk-empty-move&scope=all&page=5&size=100"));
+    }
+
+    @Test
+    void shouldSaveCollaborativeAccessRightsAndRenderThemBackInFilesList() throws Exception {
+        UserDto owner = createRegularUser("collab-owner-" + UUID.randomUUID());
+        UserDto target = createRegularUser("collab-target-" + UUID.randomUUID());
+        assertNotNull(owner);
+        assertNotNull(target);
+
+        FolderDto folder = createFolder(owner.getId(), null, "collab-folder-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/cabinet/collaborative/access")
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .param("logins", target.getLogin())
+                        .param("allowWrite", "true")
+                        .param("allowDelete", "true")
+                        .param("section", "files")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(owner))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cabinet"));
+
+        mockMvc.perform(get("/cabinet")
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(owner))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-collab-folder-id=\"" + folder.getId() + "\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-collab-write=\"true\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-collab-delete=\"true\"")));
+    }
+
+    @Test
+    void shouldUploadFileIntoCollaborativeFolderByGrantedUser() throws Exception {
+        UserDto owner = createRegularUser("collab-upload-owner-" + UUID.randomUUID());
+        UserDto target = createRegularUser("collab-upload-target-" + UUID.randomUUID());
+        assertNotNull(owner);
+        assertNotNull(target);
+
+        FolderDto folder = createFolder(owner.getId(), null, "collab-upload-folder-" + UUID.randomUUID());
+
+        mockMvc.perform(post("/cabinet/collaborative/access")
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .param("logins", target.getLogin())
+                        .param("allowWrite", "true")
+                        .param("section", "files")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(owner))))
+                .andExpect(status().is3xxRedirection());
+
+        Long accessId = collaborativeAccessService.findReceivedFolders(target.getId()).stream()
+                .filter(item -> folder.getId().equals(item.getFolderId()))
+                .map(item -> item.getAccessId())
+                .findFirst()
+                .orElse(null);
+        assertNotNull(accessId);
+
+        String filename = "collaborative-upload-" + UUID.randomUUID() + ".txt";
+        MockMultipartFile multipartFile = new MockMultipartFile(
+                "file",
+                filename,
+                "text/plain",
+                ("collaborative payload " + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart("/cabinet/collaborative/files/upload")
+                        .file(multipartFile)
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .param("description", "Файл из совместного доступа")
+                        .param("currentFolderId", String.valueOf(folder.getId()))
+                        .param("section", "collaborative")
+                        .param("view", "list")
+                        .param("sort", "date_newest")
+                        .param("scope", "collaborative")
+                        .param("collaborativeAccessId", String.valueOf(accessId))
+                        .param("page", "1")
+                        .param("size", "20")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(target))))
+                .andExpect(status().is3xxRedirection());
+
+        List<FileItemDto> files = fileService.findByOwnerIdAndFolderId(owner.getId(), folder.getId());
+        FileItemDto uploadedFile = files.stream()
+                .filter(item -> filename.equals(item.getOriginalFilename()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(uploadedFile);
+    }
+
     private FolderDto ensureFolder(Long ownerId) {
         List<FolderDto> folders = folderService.findRootFoldersByOwnerId(ownerId);
         if (!folders.isEmpty()) {
@@ -642,6 +1036,17 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
         return saved;
     }
 
+    private UserDto createRegularUser(String login) {
+        UserDto user = new UserDto();
+        user.setLogin(login);
+        user.setDisplayName(login);
+        user.setPasswordHash("{noop}password");
+        user.setRoleCode("ROLE_USER");
+        user.setStatusCode("ACTIVE");
+        user.setStorageQuotaBytes(100L * 1024L * 1024L);
+        return userService.save(user);
+    }
+
     private FileItemDto ensureFile(UserDto user, FolderDto folder) {
         String filename = "share-delete-" + UUID.randomUUID() + ".txt";
         String payload = "share delete payload " + UUID.randomUUID();
@@ -657,6 +1062,21 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
                 filename,
                 "text/plain",
                 payload.getBytes(StandardCharsets.UTF_8)
+        ));
+        FileItemDto saved = fileService.upload(user.getId(), fileUploadDto);
+        assertNotNull(saved);
+        return saved;
+    }
+
+    private FileItemDto createImageFile(UserDto user, FolderDto folder, String filename) {
+        FileUploadDto fileUploadDto = new FileUploadDto();
+        fileUploadDto.setFolderId(folder.getId());
+        fileUploadDto.setDescription("image test file");
+        fileUploadDto.setFile(new MockMultipartFile(
+                "file",
+                filename,
+                "image/png",
+                new byte[]{(byte) 137, 80, 78, 71, 13, 10, 26, 10}
         ));
         FileItemDto saved = fileService.upload(user.getId(), fileUploadDto);
         assertNotNull(saved);
