@@ -37,6 +37,11 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -161,6 +166,39 @@ class CabinetApiControllerTest extends IntegrationTestBootstrap {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("text/plain")))
                 .andExpect(content().bytes(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void shouldReturnJpegThumbnailForImageViaApi() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), "api-image-" + UUID.randomUUID());
+        String filename = "api-image-" + UUID.randomUUID() + ".png";
+
+        MockMultipartFile multipartFile = new MockMultipartFile(
+                "file",
+                filename,
+                "image/png",
+                createPngImageBytes()
+        );
+
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/cabinet/files")
+                        .file(multipartFile)
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .param("description", "API image upload")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+
+        Long fileId = Long.valueOf(JsonPath.read(uploadResult.getResponse().getContentAsString(), "$.fileId").toString());
+
+        mockMvc.perform(get("/api/cabinet/files/{id}/thumbnail", fileId)
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("image/jpeg")));
     }
 
     @Test
@@ -441,5 +479,17 @@ class CabinetApiControllerTest extends IntegrationTestBootstrap {
         user.setStatusCode("ACTIVE");
         user.setStorageQuotaBytes(100L * 1024L * 1024L);
         return userService.save(user);
+    }
+
+    private byte[] createPngImageBytes() throws IOException {
+        BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                image.setRGB(x, y, ((x + y) % 2 == 0 ? Color.BLUE : Color.CYAN).getRGB());
+            }
+        }
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", outputStream);
+        return outputStream.toByteArray();
     }
 }

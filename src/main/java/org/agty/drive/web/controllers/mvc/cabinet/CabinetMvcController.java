@@ -702,7 +702,7 @@ public class CabinetMvcController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_PNG)
+                .contentType(MediaType.IMAGE_JPEG)
                 .contentLength(content.length)
                 .body(content);
     }

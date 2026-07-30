@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
+import java.awt.Color;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -56,7 +57,7 @@ public class ImageThumbnailService {
 
             BufferedImage thumbnail = buildThumbnail(sourceImage);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(thumbnail, "png", outputStream);
+            ImageIO.write(thumbnail, "jpeg", outputStream);
             fileContentStorageService.save(StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()), outputStream.toByteArray());
             return true;
         } catch (IOException e) {
@@ -81,7 +82,7 @@ public class ImageThumbnailService {
 
             BufferedImage thumbnail = buildThumbnail(sourceImage);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(thumbnail, "png", outputStream);
+            ImageIO.write(thumbnail, "jpeg", outputStream);
             fileContentStorageService.save(StoragePathSupport.buildThumbnailStorageName(fileItemDto.getStorageName()), outputStream.toByteArray());
             return true;
         } catch (IOException e) {
@@ -93,7 +94,11 @@ public class ImageThumbnailService {
         if (storageName == null || storageName.isBlank()) {
             return null;
         }
-        return fileContentStorageService.read(StoragePathSupport.buildThumbnailStorageName(storageName));
+        byte[] content = fileContentStorageService.read(StoragePathSupport.buildThumbnailStorageName(storageName));
+        if (content != null && content.length > 0) {
+            return content;
+        }
+        return fileContentStorageService.read(StoragePathSupport.buildLegacyThumbnailStorageName(storageName));
     }
 
     public void deleteThumbnail(String storageName) {
@@ -101,6 +106,7 @@ public class ImageThumbnailService {
             return;
         }
         fileContentStorageService.delete(StoragePathSupport.buildThumbnailStorageName(storageName));
+        fileContentStorageService.delete(StoragePathSupport.buildLegacyThumbnailStorageName(storageName));
     }
 
     public void ensureThumbnailsForExistingImages() {
@@ -134,9 +140,11 @@ public class ImageThumbnailService {
             targetHeight = Math.max(1, (int) Math.round(sourceHeight * scale));
         }
 
-        BufferedImage targetImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage targetImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = targetImage.createGraphics();
         try {
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, targetWidth, targetHeight);
             graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);

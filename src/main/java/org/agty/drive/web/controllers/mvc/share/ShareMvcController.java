@@ -287,7 +287,7 @@ public class ShareMvcController {
         }
 
         return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_PNG)
+                .contentType(MediaType.IMAGE_JPEG)
                 .contentLength(content.length)
                 .body(content);
     }

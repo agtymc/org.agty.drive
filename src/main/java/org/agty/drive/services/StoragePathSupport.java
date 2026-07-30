@@ -67,6 +67,14 @@ public final class StoragePathSupport {
     }
 
     public static String buildThumbnailStorageName(String storageName) {
+        return buildThumbnailStorageName(storageName, ".thumb.jpg");
+    }
+
+    public static String buildLegacyThumbnailStorageName(String storageName) {
+        return buildThumbnailStorageName(storageName, ".thumb.png");
+    }
+
+    private static String buildThumbnailStorageName(String storageName, String suffix) {
         if (storageName == null || storageName.isBlank()) {
             throw new IllegalArgumentException("storageName is required");
         }
@@ -77,7 +85,7 @@ public final class StoragePathSupport {
         String filename = slashIndex >= 0 ? normalizedName.substring(slashIndex + 1) : normalizedName;
         int dotIndex = filename.lastIndexOf('.');
         String baseName = dotIndex >= 0 ? filename.substring(0, dotIndex) : filename;
-        return directory + baseName + ".thumb.png";
+        return directory + baseName + suffix;
     }
 
     private static String leftPad(int value) {
