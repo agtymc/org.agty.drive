@@ -8,6 +8,7 @@ SERVICE_NAME="${APP_NAME}.service"
 REQUIRED_JAVA_MAJOR="21"
 DEFAULT_INSTALL_DIR="/opt/${APP_NAME}"
 DEFAULT_GITHUB_REPO="agtymc/org.agty.drive"
+DEFAULT_INSTALL_SCRIPTS_RAW_BASE_URL="https://raw.githubusercontent.com/agtymc/org.agty.drive/master/install"
 DEFAULT_DB_HOST="localhost"
 DEFAULT_DB_PORT="5432"
 DEFAULT_DB_NAME="agtydrive"
@@ -157,6 +158,7 @@ printf 'Installer will create application directories, download latest release a
 INSTALL_DIR="$(prompt_value "Install directory" "$DEFAULT_INSTALL_DIR")"
 SERVICE_USER="$(prompt_value "System user for service" "$DEFAULT_SERVICE_USER")"
 GITHUB_REPO="$DEFAULT_GITHUB_REPO"
+INSTALL_SCRIPTS_RAW_BASE_URL="$DEFAULT_INSTALL_SCRIPTS_RAW_BASE_URL"
 
 id "$SERVICE_USER" >/dev/null 2>&1 || fail "User '$SERVICE_USER' does not exist."
 
@@ -208,6 +210,7 @@ fi
 printf 'PostgreSQL connection check passed.\n'
 
 BIN_DIR="${INSTALL_DIR}/bin"
+INSTALL_SUPPORT_DIR="${INSTALL_DIR}/install"
 LOG_DIR="${INSTALL_DIR}/logs"
 CONFIG_SAMPLE_PATH="${INSTALL_DIR}/config.ini-sample"
 CONFIG_PATH="${INSTALL_DIR}/config.ini"
@@ -244,7 +247,7 @@ Recommended release assets:
 - config.ini-sample"
 
 printf 'Creating directories...\n'
-install -d -m 0755 "$INSTALL_DIR" "$BIN_DIR" "$LOG_DIR" "$CONTENT_DIR"
+install -d -m 0755 "$INSTALL_DIR" "$BIN_DIR" "$LOG_DIR" "$CONTENT_DIR" "$INSTALL_SUPPORT_DIR"
 
 printf 'Downloading jar asset...\n'
 download_file "$JAR_DOWNLOAD_URL" "${TMP_DIR}/app.jar"
@@ -253,6 +256,12 @@ install -m 0644 "${TMP_DIR}/app.jar" "$JAR_PATH"
 printf 'Downloading config sample asset...\n'
 download_file "$CONFIG_DOWNLOAD_URL" "${TMP_DIR}/config.ini-sample"
 install -m 0644 "${TMP_DIR}/config.ini-sample" "$CONFIG_SAMPLE_PATH"
+
+printf 'Downloading maintenance scripts...\n'
+download_file "${INSTALL_SCRIPTS_RAW_BASE_URL}/uninstall.sh" "${TMP_DIR}/uninstall.sh"
+download_file "${INSTALL_SCRIPTS_RAW_BASE_URL}/update.sh" "${TMP_DIR}/update.sh"
+install -m 0755 "${TMP_DIR}/uninstall.sh" "${INSTALL_SUPPORT_DIR}/uninstall.sh"
+install -m 0755 "${TMP_DIR}/update.sh" "${INSTALL_SUPPORT_DIR}/update.sh"
 
 printf 'Generating config.ini...\n'
 cat >"$CONFIG_PATH" <<EOF
@@ -353,6 +362,7 @@ printf 'Service: %s\n' "$SERVICE_NAME"
 printf 'Config: %s\n' "$CONFIG_PATH"
 printf 'Sample config: %s\n' "$CONFIG_SAMPLE_PATH"
 printf 'Logs: %s\n' "$LOG_DIR"
+printf 'Maintenance scripts: %s\n' "$INSTALL_SUPPORT_DIR"
 printf '\nWait about 30 seconds for the service to finish starting.\n'
 printf '\nConnection details:\n'
 printf '  URL: %s\n' "$APP_URI"
@@ -362,3 +372,5 @@ printf '  Note: on a non-first installation with an existing database, use the l
 printf '\nUseful commands:\n'
 printf '  systemctl status %s\n' "$SERVICE_NAME"
 printf '  journalctl -u %s -f\n' "$SERVICE_NAME"
+printf '  sudo bash %s/update.sh\n' "${INSTALL_SUPPORT_DIR}"
+printf '  sudo bash %s/uninstall.sh\n' "${INSTALL_SUPPORT_DIR}"

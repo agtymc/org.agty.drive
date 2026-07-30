@@ -62,3 +62,6 @@ Installer behavior:
 - downloaded jar is saved as `bin/org.agty.drive.jar`
 - downloaded sample is saved as `config.ini-sample`
 - working `config.ini` is generated from installer answers
+- `uninstall.sh` and `update.sh` are downloaded from `https://raw.githubusercontent.com/agtymc/org.agty.drive/master/install/`
+- downloaded maintenance scripts are saved into `<install-dir>/install/`
+- `update.sh` always refreshes both maintenance scripts before finishing
