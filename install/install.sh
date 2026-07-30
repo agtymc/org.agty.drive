@@ -75,10 +75,18 @@ prompt_secret() {
 confirm() {
     local prompt_text="$1"
     local answer=""
-    read -r -p "${prompt_text} [y/N]: " answer
-    answer="${answer#"${answer%%[![:space:]]*}"}"
-    answer="${answer%"${answer##*[![:space:]]}"}"
-    [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
+    local normalized=""
+    while true; do
+        read -r -p "${prompt_text} [y/N]: " answer
+        normalized="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z')"
+        if [[ "$normalized" == y || "$normalized" == yes ]]; then
+            return 0
+        fi
+        if [[ -z "$normalized" || "$normalized" == n || "$normalized" == no ]]; then
+            return 1
+        fi
+        printf 'Please answer y or n.\n'
+    done
 }
 
 parse_java_major() {
