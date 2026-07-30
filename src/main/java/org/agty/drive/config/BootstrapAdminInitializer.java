@@ -33,12 +33,13 @@ public class BootstrapAdminInitializer {
     @Bean
     public ApplicationRunner bootstrapAdminRunner(UserService userService, PasswordEncoder passwordEncoder) {
         return args -> {
+            long totalUsers = userService.countAll();
             String login = LocalConfig.getString("bootstrap.admin.login", "admin").trim();
             String password = LocalConfig.getString("bootstrap.admin.password", "admin");
             String displayName = LocalConfig.getString("bootstrap.admin.display_name", "Administrator");
 
             UserDto configuredUser = userService.findByLogin(login);
-            if (shouldRefreshSeededAdmin(userService.countAll(), configuredUser, login, displayName)) {
+            if (shouldInitializeSeededConfiguredAdmin(totalUsers, configuredUser, passwordEncoder)) {
                 configuredUser.setPasswordHash(passwordEncoder.encode(password));
                 configuredUser.setDisplayName(displayName);
 
@@ -56,7 +57,7 @@ public class BootstrapAdminInitializer {
             }
 
             UserDto defaultAdmin = userService.findByLogin("admin");
-            if (shouldReplaceSeededAdmin(userService.countAll(), defaultAdmin, login)) {
+            if (shouldReplaceSeededAdmin(totalUsers, defaultAdmin, login, passwordEncoder)) {
                 defaultAdmin.setLogin(login);
                 defaultAdmin.setPasswordHash(passwordEncoder.encode(password));
                 defaultAdmin.setDisplayName(displayName);
@@ -87,29 +88,46 @@ public class BootstrapAdminInitializer {
         };
     }
 
-    private boolean shouldRefreshSeededAdmin(long totalUsers, UserDto configuredUser, String configuredLogin, String configuredDisplayName) {
+    private boolean shouldInitializeSeededConfiguredAdmin(long totalUsers,
+                                                          UserDto configuredUser,
+                                                          PasswordEncoder passwordEncoder) {
         if (totalUsers != 1L || configuredUser == null) {
             return false;
         }
         if (!"ROLE_ADMIN".equals(configuredUser.getRoleCode())) {
             return false;
         }
-        if (!configuredLogin.equals(configuredUser.getLogin())) {
-            return false;
-        }
-        return true;
+        return isFactorySeedAdmin(configuredUser, passwordEncoder);
     }
 
-    private boolean shouldReplaceSeededAdmin(long totalUsers, UserDto defaultAdmin, String configuredLogin) {
+    private boolean shouldReplaceSeededAdmin(long totalUsers,
+                                             UserDto defaultAdmin,
+                                             String configuredLogin,
+                                             PasswordEncoder passwordEncoder) {
         if (totalUsers != 1L || defaultAdmin == null) {
             return false;
         }
-        if (!"admin".equals(defaultAdmin.getLogin())) {
-            return false;
-        }
-        if (!"ROLE_ADMIN".equals(defaultAdmin.getRoleCode())) {
+        if (!isFactorySeedAdmin(defaultAdmin, passwordEncoder)) {
             return false;
         }
         return !"admin".equals(configuredLogin);
+    }
+
+    private boolean isFactorySeedAdmin(UserDto user, PasswordEncoder passwordEncoder) {
+        if (user == null) {
+            return false;
+        }
+        if (!"admin".equals(user.getLogin())) {
+            return false;
+        }
+        if (!"ROLE_ADMIN".equals(user.getRoleCode())) {
+            return false;
+        }
+        String passwordHash = user.getPasswordHash();
+        if (passwordHash == null || passwordHash.isBlank() || !passwordEncoder.matches("admin", passwordHash)) {
+            return false;
+        }
+        String displayName = user.getDisplayName();
+        return displayName == null || displayName.isBlank() || "Administrator".equals(displayName);
     }
 }
