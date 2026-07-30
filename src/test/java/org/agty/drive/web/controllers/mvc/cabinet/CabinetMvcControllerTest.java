@@ -115,6 +115,47 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
     }
 
     @Test
+    void shouldUploadFileToRootForAuthorizedUser() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        String filename = "mvc-root-upload-" + UUID.randomUUID() + ".txt";
+        String payload = "AGTY/DRIVE root upload " + UUID.randomUUID();
+
+        MockMultipartFile multipartFile = new MockMultipartFile(
+                "file",
+                filename,
+                "text/plain",
+                payload.getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart("/cabinet/files/upload")
+                        .file(multipartFile)
+                        .param("folderId", "")
+                        .param("description", "Загрузка в корень")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cabinet"));
+
+        List<FileItemDto> files = fileService.findByOwnerIdAndFolderId(user.getId(), null);
+        FileItemDto uploadedFile = files.stream()
+                .filter(item -> filename.equals(item.getOriginalFilename()))
+                .findFirst()
+                .orElse(null);
+
+        assertNotNull(uploadedFile);
+        assertNotNull(uploadedFile.getId());
+        assertEquals(null, uploadedFile.getFolderId());
+
+        mockMvc.perform(get("/cabinet/files/{id}/download", uploadedFile.getId())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().bytes(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void shouldDownloadFolderArchiveForAuthorizedUser() throws Exception {
         UserDto user = userService.findByLogin("admin");
         assertNotNull(user);

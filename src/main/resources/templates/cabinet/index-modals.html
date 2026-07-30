@@ -94,8 +94,8 @@
                 <input type="hidden" th:field="*{overwriteExisting}" data-upload-overwrite-existing>
                 <label>
                     Куда загрузить
-                    <select th:field="*{folderId}" required>
-                        <option th:if="${currentFolder == null}" value="">Выберите папку</option>
+                    <select th:field="*{folderId}">
+                        <option value="" th:selected="${currentFolder == null}" th:attr="data-existing-file-names=${uploadRootExistingFileNames}">Корень диска</option>
                         <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[currentFolder.id]}">Текущая папка</option>
                         <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[option.id]}">Документы</option>
                     </select>
@@ -119,7 +119,7 @@
                     <input type="datetime-local" th:field="*{expiresAt}" data-expiration-input data-upload-expires-input>
                 </label>
                 <div class="upload-dropzone" data-upload-dropzone-inner>
-                    <input class="upload-file-input" type="file" th:field="*{file}" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}" required multiple>
+                    <input class="upload-file-input" type="file" th:field="*{file}" required multiple>
                     <div class="upload-dropzone-title">Перетащите файл сюда</div>
                     <div class="upload-dropzone-text">или нажмите, чтобы выбрать один или несколько файлов из системы</div>
                     <div class="upload-dropzone-meta" data-upload-file-name>Файл еще не выбран</div>
@@ -140,9 +140,8 @@
                     </div>
                     <div class="upload-queue-list" data-upload-queue-list></div>
                 </div>
-                <button type="submit" th:disabled="${currentFolder == null and #lists.isEmpty(folders)}">Загрузить файлы</button>
+                <button type="submit">Загрузить файлы</button>
             </form>
-            <div class="empty-state" th:if="${currentFolder == null and #lists.isEmpty(folders)}">Сначала создайте хотя бы одну папку, затем загрузка станет доступной.</div>
         </div>
     </div>
 
@@ -159,7 +158,7 @@
                 <label>
                     Куда сохранить
                     <select data-paste-folder required>
-                        <option th:if="${currentFolder == null}" value="">Выберите папку</option>
+                        <option value="" th:selected="${currentFolder == null}">Корень диска</option>
                         <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}">Текущая папка</option>
                         <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}">Документы</option>
                     </select>

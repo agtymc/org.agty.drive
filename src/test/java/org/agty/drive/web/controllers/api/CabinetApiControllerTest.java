@@ -110,6 +110,44 @@ class CabinetApiControllerTest extends IntegrationTestBootstrap {
     }
 
     @Test
+    void shouldUploadFileToRootViaApi() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        String filename = "api-root-file-" + UUID.randomUUID() + ".txt";
+        String payload = "api root payload " + UUID.randomUUID();
+
+        MockMultipartFile multipartFile = new MockMultipartFile(
+                "file",
+                filename,
+                "text/plain",
+                payload.getBytes(StandardCharsets.UTF_8)
+        );
+
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/cabinet/files")
+                        .file(multipartFile)
+                        .param("folderId", "")
+                        .param("description", "API root upload")
+                        .with(csrf())
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.name").value(filename))
+                .andReturn();
+
+        Long fileId = Long.valueOf(JsonPath.read(uploadResult.getResponse().getContentAsString(), "$.fileId").toString());
+        FileItemDto file = fileService.findByIdAndOwnerId(fileId, user.getId());
+        assertNotNull(file);
+        assertNull(file.getFolderId());
+
+        mockMvc.perform(get("/api/cabinet/files/{id}/content", fileId)
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("text/plain")))
+                .andExpect(content().bytes(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
     void shouldCreateMoveRenameShareAndDeleteViaApi() throws Exception {
         UserDto user = userService.findByLogin("admin");
         assertNotNull(user);

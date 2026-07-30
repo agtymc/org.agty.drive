@@ -187,6 +187,7 @@ public class CabinetMvcSupport {
         model.addAttribute("moveFolderOptions", folderService.buildMoveOptions(ownerId));
         model.addAttribute("uploadFolderOptions", folderService.buildMoveOptions(ownerId));
         model.addAttribute("uploadExistingFileNamesByFolderId", fileService.buildExistingFileNamesByFolderId(ownerId));
+        model.addAttribute("uploadRootExistingFileNames", fileService.buildExistingFileNamesForFolderId(ownerId, null));
         model.addAttribute("viewMode", viewState.viewMode());
         model.addAttribute("sortMode", viewState.sortMode());
         model.addAttribute("searchQuery", viewState.searchQuery());

@@ -1361,16 +1361,7 @@
     }
 
     function ensureUploadFolderSelected() {
-        if (!uploadFolderSelect) {
-            return;
-        }
-        if (uploadFolderSelect.value) {
-            return;
-        }
-        const firstAvailableOption = [...uploadFolderSelect.options].find((option) => option.value);
-        if (firstAvailableOption) {
-            uploadFolderSelect.value = firstAvailableOption.value;
-        }
+        return;
     }
 
     function assignFilesToUploadInput(files) {

@@ -165,7 +165,7 @@ public class FileService {
             return "Некорректное имя файла.";
         }
 
-        if (uploadDto.getFolderId() == null || !folderExistsForOwner(ownerId, uploadDto.getFolderId())) {
+        if (uploadDto.getFolderId() != null && !folderExistsForOwner(ownerId, uploadDto.getFolderId())) {
             return "Папка для загрузки не найдена.";
         }
 
@@ -433,7 +433,7 @@ public class FileService {
     public java.util.Map<Long, String> buildExistingFileNamesByFolderId(Long ownerId) {
         java.util.Map<Long, java.util.LinkedHashSet<String>> grouped = new java.util.LinkedHashMap<>();
         for (FileItemDto file : findAllByOwnerId(ownerId)) {
-            if (file.getFolderId() == null || file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()) {
+            if (file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()) {
                 continue;
             }
             grouped.computeIfAbsent(file.getFolderId(), key -> new java.util.LinkedHashSet<>())
@@ -445,6 +445,10 @@ public class FileService {
             result.put(entry.getKey(), String.join("\n", entry.getValue()));
         }
         return result;
+    }
+
+    public String buildExistingFileNamesForFolderId(Long ownerId, Long folderId) {
+        return buildExistingFileNamesByFolderId(ownerId).get(folderId);
     }
 
     private boolean folderExistsForOwner(Long ownerId, Long folderId) {

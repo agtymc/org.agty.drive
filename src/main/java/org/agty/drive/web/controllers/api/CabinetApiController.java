@@ -90,7 +90,7 @@ public class CabinetApiController {
     }
 
     @PostMapping("files")
-    public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam Long folderId,
+    public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam(required = false) Long folderId,
                                                           @RequestParam MultipartFile file,
                                                           @RequestParam(required = false) String description,
                                                           @AuthenticationPrincipal DriveUserDetails userDetails) {
