@@ -16,19 +16,34 @@ warn() {
     printf 'WARNING: %s\n' "$*" >&2
 }
 
+trim_value() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
 prompt_value() {
     local prompt_text="$1"
     local default_value="${2:-}"
     local answer=""
     if [[ -n "$default_value" ]]; then
-        read -r -p "${prompt_text} [${default_value}]: " answer
-        if [[ -z "$answer" ]]; then
-            answer="$default_value"
+        if [[ -r /dev/tty && -w /dev/tty ]]; then
+            read -r -e -i "$default_value" -p "${prompt_text}: " answer </dev/tty
+        else
+            read -r -p "${prompt_text} [${default_value}]: " answer
+            if [[ -z "$answer" ]]; then
+                answer="$default_value"
+            fi
         fi
     else
-        read -r -p "${prompt_text}: " answer
+        if [[ -r /dev/tty && -w /dev/tty ]]; then
+            read -r -e -p "${prompt_text}: " answer </dev/tty
+        else
+            read -r -p "${prompt_text}: " answer
+        fi
     fi
-    printf '%s' "$answer"
+    printf '%s' "$(trim_value "$answer")"
 }
 
 confirm() {

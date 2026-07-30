@@ -50,27 +50,47 @@ require_command() {
     fi
 }
 
+trim_value() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
 prompt_value() {
     local prompt_text="$1"
     local default_value="${2:-}"
     local answer=""
     if [[ -n "$default_value" ]]; then
-        read -r -p "${prompt_text} [${default_value}]: " answer
-        if [[ -z "$answer" ]]; then
-            answer="$default_value"
+        if [[ -r /dev/tty && -w /dev/tty ]]; then
+            read -r -e -i "$default_value" -p "${prompt_text}: " answer </dev/tty
+        else
+            read -r -p "${prompt_text} [${default_value}]: " answer
+            if [[ -z "$answer" ]]; then
+                answer="$default_value"
+            fi
         fi
     else
-        read -r -p "${prompt_text}: " answer
+        if [[ -r /dev/tty && -w /dev/tty ]]; then
+            read -r -e -p "${prompt_text}: " answer </dev/tty
+        else
+            read -r -p "${prompt_text}: " answer
+        fi
     fi
-    printf '%s' "$answer"
+    printf '%s' "$(trim_value "$answer")"
 }
 
 prompt_secret() {
     local prompt_text="$1"
     local answer=""
-    read -r -s -p "${prompt_text}: " answer
-    printf '\n' >&2
-    printf '%s' "$answer"
+    if [[ -r /dev/tty && -w /dev/tty ]]; then
+        read -r -s -p "${prompt_text}: " answer </dev/tty
+        printf '\n' >/dev/tty
+    else
+        read -r -s -p "${prompt_text}: " answer
+        printf '\n' >&2
+    fi
+    printf '%s' "$(trim_value "$answer")"
 }
 
 confirm() {
@@ -117,6 +137,23 @@ extract_latest_asset_url() {
         | sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
         | grep -E "$pattern" \
         | head -n1
+}
+
+extract_preferred_config_asset_url() {
+    local release_json="$1"
+    local asset_url=""
+    asset_url="$(extract_latest_asset_url "$release_json" '/config\.ini-sample$')"
+    if [[ -n "$asset_url" ]]; then
+        printf '%s' "$asset_url"
+        return 0
+    fi
+    asset_url="$(extract_latest_asset_url "$release_json" '/config\.ini\.sample$')"
+    if [[ -n "$asset_url" ]]; then
+        printf '%s' "$asset_url"
+        return 0
+    fi
+    asset_url="$(extract_latest_asset_url "$release_json" '/config\.ini$')"
+    printf '%s' "$asset_url"
 }
 
 download_file() {
@@ -232,7 +269,7 @@ Prepare latest release with these assets and run installer again:
 fi
 
 JAR_DOWNLOAD_URL="$(extract_latest_asset_url "$RELEASE_JSON" '/org-agty-drive-[^/]+\.jar$')"
-CONFIG_DOWNLOAD_URL="$(extract_latest_asset_url "$RELEASE_JSON" '/config\.ini([.-]sample)?$')"
+CONFIG_DOWNLOAD_URL="$(extract_preferred_config_asset_url "$RELEASE_JSON")"
 
 [[ -n "$JAR_DOWNLOAD_URL" ]] || fail "Latest GitHub release does not contain the expected jar asset.
 
