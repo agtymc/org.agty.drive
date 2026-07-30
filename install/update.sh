@@ -250,6 +250,79 @@ list_deprecated_config_keys() {
     ' "$current_config" "$sample_config" | sort >"$output_file"
 }
 
+configs_have_same_keys() {
+    local left_config="$1"
+    local right_config="$2"
+    local left_keys
+    local right_keys
+    left_keys="$(mktemp)"
+    right_keys="$(mktemp)"
+    awk '
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+        {
+            line = $0
+            trimmed = trim(line)
+            if (trimmed ~ /^\[/ && trimmed ~ /\]$/) {
+                section = trimmed
+                sub(/^\[/, "", section)
+                sub(/\]$/, "", section)
+                section = trim(section)
+                next
+            }
+            if (trimmed == "" || trimmed ~ /^[#;]/) {
+                next
+            }
+            separator = index(line, "=")
+            if (separator < 1) {
+                next
+            }
+            key = trim(substr(line, 1, separator - 1))
+            if (key == "") {
+                next
+            }
+            print(section == "" ? key : section "." key)
+        }
+    ' "$left_config" | sort -u >"$left_keys"
+    awk '
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+        {
+            line = $0
+            trimmed = trim(line)
+            if (trimmed ~ /^\[/ && trimmed ~ /\]$/) {
+                section = trimmed
+                sub(/^\[/, "", section)
+                sub(/\]$/, "", section)
+                section = trim(section)
+                next
+            }
+            if (trimmed == "" || trimmed ~ /^[#;]/) {
+                next
+            }
+            separator = index(line, "=")
+            if (separator < 1) {
+                next
+            }
+            key = trim(substr(line, 1, separator - 1))
+            if (key == "") {
+                next
+            }
+            print(section == "" ? key : section "." key)
+        }
+    ' "$right_config" | sort -u >"$right_keys"
+    if cmp -s "$left_keys" "$right_keys"; then
+        rm -f "$left_keys" "$right_keys"
+        return 0
+    fi
+    rm -f "$left_keys" "$right_keys"
+    return 1
+}
+
 if [[ "${EUID}" -ne 0 ]]; then
     fail "Run this updater as root. Example: sudo bash install/update.sh"
 fi
@@ -304,6 +377,11 @@ download_file "$JAR_DOWNLOAD_URL" "${TMP_DIR}/app.jar"
 printf 'Downloading config sample asset...\n'
 download_file "$CONFIG_DOWNLOAD_URL" "${TMP_DIR}/config.ini-sample"
 
+SKIP_CONFIG_UPDATES=0
+if [[ -f "$CONFIG_PATH" ]] && configs_have_same_keys "$CONFIG_PATH" "${TMP_DIR}/config.ini-sample"; then
+    SKIP_CONFIG_UPDATES=1
+fi
+
 printf 'Refreshing maintenance scripts...\n'
 install -d -m 0755 "$INSTALL_SUPPORT_DIR"
 download_file "${INSTALL_SCRIPTS_RAW_BASE_URL}/uninstall.sh" "${TMP_DIR}/uninstall.sh"
@@ -311,11 +389,16 @@ download_file "${INSTALL_SCRIPTS_RAW_BASE_URL}/update.sh" "${TMP_DIR}/update.sh"
 
 printf 'Installing updated files...\n'
 install -m 0644 "${TMP_DIR}/app.jar" "$JAR_PATH"
-install -m 0644 "${TMP_DIR}/config.ini-sample" "$CONFIG_SAMPLE_PATH"
 install -m 0755 "${TMP_DIR}/uninstall.sh" "${INSTALL_SUPPORT_DIR}/uninstall.sh"
 install -m 0755 "${TMP_DIR}/update.sh" "${INSTALL_SUPPORT_DIR}/update.sh"
 
-if [[ -f "$CONFIG_PATH" ]]; then
+if [[ "$SKIP_CONFIG_UPDATES" -eq 1 ]]; then
+    printf 'Config keys are unchanged between %s and the downloaded config sample. Config files were left untouched.\n' "$CONFIG_PATH"
+else
+    install -m 0644 "${TMP_DIR}/config.ini-sample" "$CONFIG_SAMPLE_PATH"
+fi
+
+if [[ -f "$CONFIG_PATH" && "$SKIP_CONFIG_UPDATES" -eq 0 ]]; then
     printf 'Building merged config preview from current config and new sample...\n'
     merge_config_with_sample "$CONFIG_PATH" "$CONFIG_SAMPLE_PATH" "$CONFIG_MERGED_PATH"
     list_deprecated_config_keys "$CONFIG_PATH" "$CONFIG_SAMPLE_PATH" "$CONFIG_DEPRECATED_KEYS_PATH"
@@ -363,11 +446,15 @@ printf 'Application directory: %s\n' "$INSTALL_DIR"
 printf 'Jar: %s\n' "$JAR_PATH"
 if [[ -f "$CONFIG_PATH" ]]; then
     printf 'Working config preserved: %s\n' "$CONFIG_PATH"
-    printf 'Merged config preview: %s\n' "$CONFIG_MERGED_PATH"
-    if [[ -s "$CONFIG_DEPRECATED_KEYS_PATH" ]]; then
-        printf 'Deprecated or renamed keys to review: %s\n' "$CONFIG_DEPRECATED_KEYS_PATH"
+    if [[ "$SKIP_CONFIG_UPDATES" -eq 1 ]]; then
+        printf 'Config update actions: skipped because the config key set is unchanged\n'
     else
-        printf 'Deprecated or renamed keys to review: none\n'
+        printf 'Merged config preview: %s\n' "$CONFIG_MERGED_PATH"
+        if [[ -s "$CONFIG_DEPRECATED_KEYS_PATH" ]]; then
+            printf 'Deprecated or renamed keys to review: %s\n' "$CONFIG_DEPRECATED_KEYS_PATH"
+        else
+            printf 'Deprecated or renamed keys to review: none\n'
+        fi
     fi
 fi
 printf 'Sample config: %s\n' "$CONFIG_SAMPLE_PATH"
