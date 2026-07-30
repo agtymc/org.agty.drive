@@ -407,7 +407,10 @@ printf '  Login: %s\n' "$BOOTSTRAP_ADMIN_LOGIN"
 printf '  Password: %s\n' "$BOOTSTRAP_ADMIN_PASSWORD"
 printf '  Note: on a non-first installation with an existing database, use the login and password already stored in the database.\n'
 printf '\nUseful commands:\n'
-printf '  systemctl status %s\n' "$SERVICE_NAME"
-printf '  journalctl -u %s -f\n' "$SERVICE_NAME"
+printf '  sudo systemctl status %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl start %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl stop %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl restart %s\n' "$SERVICE_NAME"
+printf '  sudo journalctl -u %s -f\n' "$SERVICE_NAME"
 printf '  sudo bash %s/update.sh\n' "${INSTALL_SUPPORT_DIR}"
 printf '  sudo bash %s/uninstall.sh\n' "${INSTALL_SUPPORT_DIR}"

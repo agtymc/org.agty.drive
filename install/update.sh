@@ -373,7 +373,10 @@ fi
 printf 'Sample config: %s\n' "$CONFIG_SAMPLE_PATH"
 printf 'Maintenance scripts refreshed in: %s\n' "$INSTALL_SUPPORT_DIR"
 printf '\nUseful commands:\n'
-printf '  systemctl status %s\n' "$SERVICE_NAME"
-printf '  journalctl -u %s -f\n' "$SERVICE_NAME"
+printf '  sudo systemctl status %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl start %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl stop %s\n' "$SERVICE_NAME"
+printf '  sudo systemctl restart %s\n' "$SERVICE_NAME"
+printf '  sudo journalctl -u %s -f\n' "$SERVICE_NAME"
 printf '  sudo bash %s/update.sh\n' "${INSTALL_SUPPORT_DIR}"
 printf '  sudo bash %s/uninstall.sh\n' "${INSTALL_SUPPORT_DIR}"
