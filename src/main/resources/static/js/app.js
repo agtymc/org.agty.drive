@@ -1361,7 +1361,18 @@
     }
 
     function ensureUploadFolderSelected() {
-        return;
+        if (!uploadForm || !uploadFolderSelect) {
+            return;
+        }
+        const currentFolderId = uploadForm.getAttribute("data-current-folder-id");
+        if (currentFolderId == null || currentFolderId === "") {
+            uploadFolderSelect.value = "";
+            return;
+        }
+        const hasCurrentFolderOption = [...uploadFolderSelect.options].some((option) => option.value === currentFolderId);
+        if (hasCurrentFolderOption) {
+            uploadFolderSelect.value = currentFolderId;
+        }
     }
 
     function assignFilesToUploadInput(files) {

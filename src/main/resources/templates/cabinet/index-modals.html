@@ -89,14 +89,14 @@
                 </div>
                 <button class="modal-close" type="button" data-close-modal="upload-modal">×</button>
             </div>
-            <form class="folder-form upload-form" method="post" enctype="multipart/form-data" th:action="@{/cabinet/files/upload}" th:object="${fileUploadDto}" data-upload-form>
+            <form class="folder-form upload-form" method="post" enctype="multipart/form-data" th:action="@{/cabinet/files/upload}" th:object="${fileUploadDto}" data-upload-form th:attr="data-current-folder-id=${currentFolderId}">
                 <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(false)}"></th:block>
                 <input type="hidden" th:field="*{overwriteExisting}" data-upload-overwrite-existing>
                 <label>
                     Куда загрузить
                     <select th:field="*{folderId}">
                         <option value="" th:selected="${currentFolder == null}" th:attr="data-existing-file-names=${uploadRootExistingFileNames}">Корень диска</option>
-                        <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[currentFolder.id]}">Текущая папка</option>
+                        <option th:if="${currentFolder != null}" th:value="${currentFolder.id}" th:text="${currentFolder.name}" th:selected="${currentFolder != null}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[currentFolder.id]}">Текущая папка</option>
                         <option th:each="option : ${uploadFolderOptions}" th:if="${option.id != null and (currentFolder == null or option.id != currentFolder.id)}" th:value="${option.id}" th:text="${option.displayTitle}" th:attr="data-existing-file-names=${uploadExistingFileNamesByFolderId[option.id]}">Документы</option>
                     </select>
                 </label>

@@ -26,6 +26,7 @@ import org.agty.drive.dto.ItemPropertiesDto;
 import org.agty.drive.dto.ItemRenameDto;
 import org.agty.drive.dto.ProfileSecuritySettingsDto;
 import org.agty.drive.dto.ShareLinkCreateDto;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -43,8 +44,10 @@ public class CabinetMvcFormAdvice {
     }
 
     @ModelAttribute("fileUploadDto")
-    public FileUploadDto fileUploadForm() {
-        return new FileUploadDto();
+    public FileUploadDto fileUploadForm(@RequestParam(name = "folderId", required = false) Long folderId) {
+        FileUploadDto dto = new FileUploadDto();
+        dto.setFolderId(folderId);
+        return dto;
     }
 
     @ModelAttribute("changePasswordDto")

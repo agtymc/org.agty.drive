@@ -58,6 +58,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -169,6 +170,22 @@ class CabinetMvcControllerTest extends IntegrationTestBootstrap {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString(filename)))
                 .andExpect(content().bytes(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void shouldPreselectCurrentFolderInUploadModal() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        FolderDto folder = createFolder(user.getId(), null, "upload-target-" + UUID.randomUUID());
+
+        mockMvc.perform(get("/cabinet")
+                        .param("folderId", String.valueOf(folder.getId()))
+                        .with(SecurityMockMvcRequestPostProcessors.user(new DriveUserDetails(user))))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("fileUploadDto", org.hamcrest.Matchers.hasProperty("folderId", org.hamcrest.Matchers.is(folder.getId()))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-current-folder-id=\"" + folder.getId() + "\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<select id=\"folderId\" name=\"folderId\">")));
     }
 
     @Test
