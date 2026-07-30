@@ -36,6 +36,22 @@ sudo usermod -aG docker "$USER"
 
 ## 2. Запустить PostgreSQL в Docker
 
+Если хотите, можно использовать готовый скрипт из репозитория:
+
+```bash
+sudo POSTGRES_PASSWORD='change-me' bash docs/install-postgres-docker.sh
+```
+
+По умолчанию скрипт запускает `postgres:18`.
+
+Если нужен другой порт на хосте, задайте его через `HOST_PORT`, например:
+
+```bash
+sudo HOST_PORT=55432 POSTGRES_PASSWORD='change-me' bash docs/install-postgres-docker.sh
+```
+
+Если хотите запустить контейнер вручную, используйте команды ниже.
+
 Создайте директорию для данных:
 
 ```bash
@@ -54,7 +70,7 @@ sudo docker run -d \
   -e POSTGRES_PASSWORD=change-me \
   -p 5432:5432 \
   -v /opt/agtydrive/postgres-data:/var/lib/postgresql/data \
-  postgres:16
+  postgres:18
 ```
 
 Проверка:
