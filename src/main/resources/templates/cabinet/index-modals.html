@@ -227,6 +227,13 @@
                             <span class="action-menu-text">Открыть папку для других пользователей</span>
                         </span>
                     </button>
+                    <button type="button" class="action-menu-btn" data-item-webdav-action hidden>
+                        <span class="action-menu-icon" aria-hidden="true">⇅</span>
+                        <span class="action-menu-copy">
+                            <span class="action-menu-title">Настроить WebDAV</span>
+                            <span class="action-menu-text">Отдельный адрес и логин для папки</span>
+                        </span>
+                    </button>
                     <button type="button" class="action-menu-btn" data-item-share-action>
                         <span class="action-menu-icon" aria-hidden="true">🔗</span>
                         <span class="action-menu-copy">
@@ -234,20 +241,22 @@
                             <span class="action-menu-text">Открыть доступ и настроить права</span>
                         </span>
                     </button>
-                    <button type="button" class="action-menu-btn" data-item-rename-action>
-                        <span class="action-menu-icon" aria-hidden="true">✎</span>
-                        <span class="action-menu-copy">
-                            <span class="action-menu-title">Переименовать</span>
-                            <span class="action-menu-text">Изменить имя объекта</span>
-                        </span>
-                    </button>
-                    <button type="button" class="action-menu-btn" data-item-move-action>
-                        <span class="action-menu-icon" aria-hidden="true">⇄</span>
-                        <span class="action-menu-copy">
-                            <span class="action-menu-title">Переместить</span>
-                            <span class="action-menu-text">Выбрать другую директорию</span>
-                        </span>
-                    </button>
+                    <div class="action-menu-row">
+                        <button type="button" class="action-menu-btn" data-item-rename-action>
+                            <span class="action-menu-icon" aria-hidden="true">✎</span>
+                            <span class="action-menu-copy">
+                                <span class="action-menu-title">Переименовать</span>
+                                <span class="action-menu-text">Изменить имя</span>
+                            </span>
+                        </button>
+                        <button type="button" class="action-menu-btn" data-item-move-action>
+                            <span class="action-menu-icon" aria-hidden="true">⇄</span>
+                            <span class="action-menu-copy">
+                                <span class="action-menu-title">Переместить</span>
+                                <span class="action-menu-text">В другую папку</span>
+                            </span>
+                        </button>
+                    </div>
                     <button type="button" class="action-menu-btn" data-item-properties-action>
                         <span class="action-menu-icon" aria-hidden="true">ⓘ</span>
                         <span class="action-menu-copy">
@@ -431,6 +440,55 @@
                 <button type="submit">Сохранить доступ</button>
             </form>
             <div class="error-text" th:if="${collaborativeError}" th:text="${collaborativeError}">Ошибка</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" data-modal="webdav-folder-modal" hidden>
+        <div class="modal-card">
+            <div class="drive-panel-head">
+                <div>
+                    <div class="section-eyebrow">WebDAV</div>
+                    <h2>Настройка WebDAV</h2>
+                </div>
+                <button class="modal-close" type="button" data-close-modal="webdav-folder-modal">×</button>
+            </div>
+            <form class="folder-form" method="post" th:action="@{/cabinet/webdav/folder}" th:object="${webDavFolderAccessCreateDto}">
+                <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+                <input type="hidden" th:field="*{folderId}" data-webdav-folder-id-input>
+                <div class="share-current" data-webdav-current hidden>
+                    <div class="share-current-title">Текущее подключение WebDAV</div>
+                    <input type="text" value="" data-webdav-url-input readonly>
+                    <div class="share-current-meta">
+                        <span><strong>Логин:</strong> <span data-webdav-login-title>—</span></span>
+                        <span aria-hidden="true">•</span>
+                        <span><strong>Статус:</strong> <span data-webdav-status-title>Отключен</span></span>
+                        <span aria-hidden="true">•</span>
+                        <span data-webdav-mode-title>Только чтение</span>
+                    </div>
+                    <div class="row-actions">
+                        <button type="button" class="inline-link" data-webdav-copy-url>Копировать адрес</button>
+                        <button type="button" class="inline-link" data-webdav-copy-login>Копировать логин</button>
+                    </div>
+                </div>
+                <label>
+                    Папка
+                    <input type="text" value="" data-webdav-folder-name-input readonly>
+                </label>
+                <div class="status-text" data-webdav-password-note hidden>Пароль уже сохранен. Оставьте поле пустым, чтобы не менять его.</div>
+                <label>
+                    Логин WebDAV
+                    <input type="text" th:field="*{loginName}" maxlength="120" placeholder="Например, client-docs" data-webdav-login-input required>
+                </label>
+                <label>
+                    Пароль WebDAV
+                    <input type="text" th:field="*{password}" maxlength="255" placeholder="Минимум 8 символов" data-webdav-password-input>
+                </label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{enabled}" data-webdav-enabled-input><span>Включить доступ</span></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{allowWrite}" data-webdav-allow-write-input><span>Разрешить запись и удаление</span></label>
+                <label class="checkbox-row"><input type="checkbox" th:field="*{rotateToken}" data-webdav-rotate-token-input><span>Переиздать адрес подключения</span></label>
+                <button type="submit">Сохранить WebDAV</button>
+            </form>
+            <div class="error-text" th:if="${webDavError}" th:text="${webDavError}">Ошибка</div>
         </div>
     </div>
 

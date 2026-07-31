@@ -167,6 +167,16 @@ public class FileService {
         return imageThumbnailService.readThumbnail(fileItemDto.getStorageName());
     }
 
+    public InputStream openContentStream(Long fileId, Long ownerId) {
+        FileItemDto fileItemDto = ownerId == null
+                ? findById(fileId)
+                : findByIdAndOwnerId(fileId, ownerId);
+        if (fileItemDto == null) {
+            return null;
+        }
+        return fileContentStorageService.openStream(fileItemDto.getStorageName());
+    }
+
     public String validateUpload(Long ownerId, FileUploadDto uploadDto) {
         if (ownerId == null || uploadDto == null) {
             return "Пользователь не найден.";
@@ -317,6 +327,117 @@ public class FileService {
         }
     }
 
+    public FileItemDto uploadStream(Long ownerId,
+                                    Long folderId,
+                                    String originalFilename,
+                                    String contentType,
+                                    InputStream inputStream,
+                                    boolean overwriteExisting) {
+        String normalizedFilename = filenamePolicyService.normalizeFilename(originalFilename);
+        if (ownerId == null || normalizedFilename == null || inputStream == null) {
+            return null;
+        }
+        if (folderId != null && !folderExistsForOwner(ownerId, folderId)) {
+            return null;
+        }
+
+        Path tempPath = null;
+        String finalStorageName = null;
+        boolean repositorySaved = false;
+        try {
+            String extension = extractExtension(normalizedFilename);
+            String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(contentType, extension);
+            tempPath = fileContentStorageService.createTempFile();
+            MessageDigest digest = newSha256Digest();
+            long actualSizeBytes = 0L;
+
+            try (OutputStream outputStream = Files.newOutputStream(tempPath)) {
+                byte[] buffer = new byte[1024 * 1024];
+                int read;
+                while ((read = inputStream.read(buffer)) >= 0) {
+                    if (read == 0) {
+                        continue;
+                    }
+                    digest.update(buffer, 0, read);
+                    outputStream.write(buffer, 0, read);
+                    actualSizeBytes += read;
+                }
+            }
+
+            FileItemDto existingFile = fileRepository.findByOwnerIdAndFolderIdAndOriginalFilename(ownerId, folderId, normalizedFilename);
+            if (existingFile != null && !overwriteExisting) {
+                return null;
+            }
+
+            long quotaBytes = resolveQuotaBytes(ownerId);
+            long usedBytes = sumSizeByOwnerId(ownerId);
+            long existingSize = existingFile == null || existingFile.getSizeBytes() == null ? 0L : Math.max(0L, existingFile.getSizeBytes());
+            long projectedUsage = overwriteExisting ? usedBytes - existingSize + actualSizeBytes : usedBytes + actualSizeBytes;
+            if (projectedUsage > quotaBytes) {
+                return null;
+            }
+
+            String checksumSha256 = HexFormat.of().formatHex(digest.digest());
+            FileItemDto fileItemDto = new FileItemDto();
+            fileItemDto.setOwnerId(ownerId);
+            fileItemDto.setFolderId(folderId);
+            fileItemDto.setOriginalFilename(normalizedFilename);
+            fileItemDto.setMimeType(mimeType);
+            fileItemDto.setExtension(extension);
+            fileItemDto.setSizeBytes(actualSizeBytes);
+            fileItemDto.setChecksumSha256(checksumSha256);
+            finalStorageName = StoragePathSupport.buildStorageName(
+                    checksumSha256,
+                    extension,
+                    AppTime.today()
+            );
+            fileItemDto.setStorageName(finalStorageName);
+            fileItemDto.setPreviewStatus("NONE");
+            fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
+            fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
+
+            fileContentStorageService.moveIntoStorage(tempPath, finalStorageName);
+            tempPath = null;
+
+            FileItemDto saved = saveUploadedFileRecord(
+                    fileItemDto,
+                    ownerId,
+                    folderId,
+                    normalizedFilename,
+                    overwriteExisting
+            );
+            if (saved == null || saved.getId() == null) {
+                fileContentStorageService.delete(finalStorageName);
+                return null;
+            }
+            repositorySaved = true;
+
+            if (saved.isImagePreview()) {
+                saved.setPreviewStatus(imageThumbnailService.generateForFile(saved) ? "READY" : "FAILED");
+                FileItemDto updated = fileRepository.save(saved);
+                return updated == null ? saved : updated;
+            }
+            return saved;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (RuntimeException e) {
+            if (finalStorageName != null && !repositorySaved) {
+                try {
+                    fileContentStorageService.delete(finalStorageName);
+                } catch (RuntimeException ignored) {
+                }
+            }
+            throw e;
+        } finally {
+            if (tempPath != null) {
+                try {
+                    fileContentStorageService.deleteTempFile(tempPath);
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
+    }
+
     private FileItemDto saveUploadedFileRecord(FileItemDto fileItemDto,
                                                Long ownerId,
                                                Long folderId,
@@ -383,19 +504,7 @@ public class FileService {
         if (fileItemDto == null) {
             return "Файл не найден.";
         }
-
-        String normalizedName = filenamePolicyService.normalizeFilename(newName);
-        if (normalizedName == null) {
-            return "Введите название файла.";
-        }
-
-        if (fileRepository.existsByOwnerIdAndFolderIdAndOriginalFilename(ownerId, fileItemDto.getFolderId(), normalizedName, fileItemDto.getId())) {
-            return "В этой директории уже есть файл с таким названием.";
-        }
-
-        fileItemDto.setOriginalFilename(normalizedName);
-        fileItemDto.setExtension(extractExtension(normalizedName));
-        return fileRepository.save(fileItemDto) == null ? "Не удалось переименовать файл." : null;
+        return relocateByIdAndOwnerId(id, ownerId, fileItemDto.getFolderId(), newName);
     }
 
     public String moveByIdAndOwnerId(Long id, Long ownerId, Long targetFolderId) {
@@ -403,24 +512,39 @@ public class FileService {
         if (fileItemDto == null) {
             return "Файл не найден.";
         }
+        return relocateByIdAndOwnerId(id, ownerId, targetFolderId, fileItemDto.getOriginalFilename());
+    }
+
+    public String relocateByIdAndOwnerId(Long id, Long ownerId, Long targetFolderId, String targetName) {
+        FileItemDto fileItemDto = findByIdAndOwnerId(id, ownerId);
+        if (fileItemDto == null) {
+            return "Файл не найден.";
+        }
+
+        String normalizedName = filenamePolicyService.normalizeFilename(targetName);
+        if (normalizedName == null) {
+            return "Введите название файла.";
+        }
 
         if (targetFolderId != null && !folderExistsForOwner(ownerId, targetFolderId)) {
             return "Целевая директория не найдена.";
         }
 
-        if (fileItemDto.getFolderId() == null && targetFolderId == null) {
-            return null;
-        }
-        if (fileItemDto.getFolderId() != null && fileItemDto.getFolderId().equals(targetFolderId)) {
+        boolean sameFolder = fileItemDto.getFolderId() == null
+                ? targetFolderId == null
+                : fileItemDto.getFolderId().equals(targetFolderId);
+        if (sameFolder && normalizedName.equals(fileItemDto.getOriginalFilename())) {
             return null;
         }
 
-        if (fileRepository.existsByOwnerIdAndFolderIdAndOriginalFilename(ownerId, targetFolderId, fileItemDto.getOriginalFilename(), fileItemDto.getId())) {
+        if (fileRepository.existsByOwnerIdAndFolderIdAndOriginalFilename(ownerId, targetFolderId, normalizedName, fileItemDto.getId())) {
             return "В целевой директории уже есть файл с таким названием.";
         }
 
         fileItemDto.setFolderId(targetFolderId);
-        return fileRepository.save(fileItemDto) == null ? "Не удалось переместить файл." : null;
+        fileItemDto.setOriginalFilename(normalizedName);
+        fileItemDto.setExtension(extractExtension(normalizedName));
+        return fileRepository.save(fileItemDto) == null ? "Не удалось обновить файл." : null;
     }
 
     public List<FileItemDto> findExpiredActiveFiles() {
@@ -473,6 +597,13 @@ public class FileService {
         }
 
         return folderService.findByIdAndOwnerId(folderId, ownerId) != null;
+    }
+
+    private long resolveQuotaBytes(Long ownerId) {
+        UserDto user = userService.findById(ownerId);
+        return user == null || user.getStorageQuotaBytes() == null || user.getStorageQuotaBytes() <= 0
+                ? DEFAULT_STORAGE_QUOTA_BYTES
+                : user.getStorageQuotaBytes();
     }
 
     private String extractExtension(String originalFilename) {

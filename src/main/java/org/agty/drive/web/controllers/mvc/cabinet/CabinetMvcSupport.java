@@ -31,6 +31,7 @@ import org.agty.drive.services.FileService;
 import org.agty.drive.services.FolderService;
 import org.agty.drive.services.ShareLinkService;
 import org.agty.drive.services.UserService;
+import org.agty.drive.services.WebDavFolderAccessService;
 import org.springframework.stereotype.Component;
 import org.springframework.ui.Model;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -53,6 +54,7 @@ public class CabinetMvcSupport {
     private final CabinetRoutes cabinetRoutes;
     private final ApplicationInfo applicationInfo;
     private final CollaborativeAccessService collaborativeAccessService;
+    private final WebDavFolderAccessService webDavFolderAccessService;
 
     public CabinetMvcSupport(FolderService folderService,
                              FileService fileService,
@@ -61,7 +63,8 @@ public class CabinetMvcSupport {
                              AuditLogService auditLogService,
                              CabinetRoutes cabinetRoutes,
                              ApplicationInfo applicationInfo,
-                             CollaborativeAccessService collaborativeAccessService) {
+                             CollaborativeAccessService collaborativeAccessService,
+                             WebDavFolderAccessService webDavFolderAccessService) {
         this.folderService = folderService;
         this.fileService = fileService;
         this.shareLinkService = shareLinkService;
@@ -70,6 +73,7 @@ public class CabinetMvcSupport {
         this.cabinetRoutes = cabinetRoutes;
         this.applicationInfo = applicationInfo;
         this.collaborativeAccessService = collaborativeAccessService;
+        this.webDavFolderAccessService = webDavFolderAccessService;
     }
 
     public void fillCabinetModel(Model model,
@@ -193,6 +197,10 @@ public class CabinetMvcSupport {
         model.addAttribute("collaborativeSharesByFolderId", "files".equals(normalizedSection)
                 ? collaborativeAccessService.mapProvidedByFolderId(ownerId)
                 : java.util.Map.of());
+        model.addAttribute("webDavAccessByFolderId", "files".equals(normalizedSection)
+                ? webDavFolderAccessService.mapByFolderId(ownerId)
+                : java.util.Map.of());
+        model.addAttribute("webDavBaseUrl", resolveCurrentBaseUri());
         model.addAttribute("sharedItems", sharedItems);
         model.addAttribute("filesSizeTitle", org.agty.utils.AgtyUtils.filesizeToTitle(filesSize, "ru"));
         model.addAttribute("storageQuotaTitle", currentUser.getStorageQuotaTitle());
@@ -375,6 +383,12 @@ public class CabinetMvcSupport {
         model.addAttribute("itemOpenModal", modalName);
         model.addAttribute("itemOpenResourceType", resourceType);
         model.addAttribute("itemOpenResourceId", resourceId);
+    }
+
+    public String resolveCurrentBaseUri() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = attributes == null ? null : attributes.getRequest();
+        return applicationInfo.resolveBaseUri(request);
     }
 
     public String redirectCabinet(String section,

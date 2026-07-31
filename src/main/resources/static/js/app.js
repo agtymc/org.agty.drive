@@ -44,6 +44,7 @@
     const itemActionsName = itemActionsModal ? itemActionsModal.querySelector("[data-item-actions-name]") : null;
     const itemActionsIcon = itemActionsModal ? itemActionsModal.querySelector("[data-item-actions-icon]") : null;
     const itemCollaborativeAction = itemActionsModal ? itemActionsModal.querySelector("[data-item-collaborative-action]") : null;
+    const itemWebDavAction = itemActionsModal ? itemActionsModal.querySelector("[data-item-webdav-action]") : null;
     const itemShareAction = itemActionsModal ? itemActionsModal.querySelector("[data-item-share-action]") : null;
     const itemRenameAction = itemActionsModal ? itemActionsModal.querySelector("[data-item-rename-action]") : null;
     const itemMoveAction = itemActionsModal ? itemActionsModal.querySelector("[data-item-move-action]") : null;
@@ -110,6 +111,24 @@
     const collaborativeWriteInput = collaborativeForm ? collaborativeForm.querySelector("[data-collab-write-input]") : null;
     const collaborativeDeleteInput = collaborativeForm ? collaborativeForm.querySelector("[data-collab-delete-input]") : null;
     const collaborativePasswordNote = collaborativeForm ? collaborativeForm.querySelector("[data-collab-password-note]") : null;
+    const webDavModalName = "webdav-folder-modal";
+    const webDavModal = document.querySelector(`[data-modal="${webDavModalName}"]`);
+    const webDavForm = webDavModal ? webDavModal.querySelector("form") : null;
+    const webDavFolderIdInput = webDavForm ? webDavForm.querySelector("[data-webdav-folder-id-input]") : null;
+    const webDavCurrent = webDavForm ? webDavForm.querySelector("[data-webdav-current]") : null;
+    const webDavUrlInput = webDavForm ? webDavForm.querySelector("[data-webdav-url-input]") : null;
+    const webDavLoginTitle = webDavForm ? webDavForm.querySelector("[data-webdav-login-title]") : null;
+    const webDavStatusTitle = webDavForm ? webDavForm.querySelector("[data-webdav-status-title]") : null;
+    const webDavModeTitle = webDavForm ? webDavForm.querySelector("[data-webdav-mode-title]") : null;
+    const webDavCopyUrl = webDavForm ? webDavForm.querySelector("[data-webdav-copy-url]") : null;
+    const webDavCopyLogin = webDavForm ? webDavForm.querySelector("[data-webdav-copy-login]") : null;
+    const webDavFolderNameInput = webDavForm ? webDavForm.querySelector("[data-webdav-folder-name-input]") : null;
+    const webDavPasswordNote = webDavForm ? webDavForm.querySelector("[data-webdav-password-note]") : null;
+    const webDavLoginInput = webDavForm ? webDavForm.querySelector("[data-webdav-login-input]") : null;
+    const webDavPasswordInput = webDavForm ? webDavForm.querySelector("[data-webdav-password-input]") : null;
+    const webDavEnabledInput = webDavForm ? webDavForm.querySelector("[data-webdav-enabled-input]") : null;
+    const webDavAllowWriteInput = webDavForm ? webDavForm.querySelector("[data-webdav-allow-write-input]") : null;
+    const webDavRotateTokenInput = webDavForm ? webDavForm.querySelector("[data-webdav-rotate-token-input]") : null;
     const copyTriggers = document.querySelectorAll("[data-copy-text]");
     const previewTriggers = document.querySelectorAll("[data-preview-trigger]");
     const previewModal = document.querySelector('[data-modal="preview-modal"]');
@@ -1496,6 +1515,9 @@
         if (itemCollaborativeAction) {
             itemCollaborativeAction.hidden = true;
         }
+        if (itemWebDavAction) {
+            itemWebDavAction.hidden = true;
+        }
     }
 
     function populateRenameState(trigger, preserveInputValue) {
@@ -1634,6 +1656,9 @@
         if (itemCollaborativeAction) {
             itemCollaborativeAction.hidden = itemType !== "FOLDER";
         }
+        if (itemWebDavAction) {
+            itemWebDavAction.hidden = itemType !== "FOLDER";
+        }
     }
 
     function resetCollaborativeState() {
@@ -1658,6 +1683,114 @@
         }
         if (collaborativePasswordNote) {
             collaborativePasswordNote.hidden = true;
+        }
+    }
+
+    function resetWebDavState() {
+        if (webDavForm) {
+            webDavForm.reset();
+        }
+        if (webDavFolderIdInput) {
+            webDavFolderIdInput.value = "";
+        }
+        if (webDavFolderNameInput) {
+            webDavFolderNameInput.value = "";
+        }
+        if (webDavCurrent) {
+            webDavCurrent.hidden = true;
+        }
+        if (webDavUrlInput) {
+            webDavUrlInput.value = "";
+        }
+        if (webDavLoginTitle) {
+            webDavLoginTitle.textContent = "—";
+        }
+        if (webDavStatusTitle) {
+            webDavStatusTitle.textContent = "Отключен";
+        }
+        if (webDavModeTitle) {
+            webDavModeTitle.textContent = "Только чтение";
+        }
+        if (webDavPasswordNote) {
+            webDavPasswordNote.hidden = true;
+        }
+        if (webDavLoginInput) {
+            webDavLoginInput.value = "";
+            webDavLoginInput.defaultValue = "";
+        }
+        if (webDavPasswordInput) {
+            webDavPasswordInput.value = "";
+            webDavPasswordInput.defaultValue = "";
+        }
+        if (webDavEnabledInput) {
+            webDavEnabledInput.checked = false;
+            webDavEnabledInput.defaultChecked = false;
+        }
+        if (webDavAllowWriteInput) {
+            webDavAllowWriteInput.checked = false;
+            webDavAllowWriteInput.defaultChecked = false;
+        }
+        if (webDavRotateTokenInput) {
+            webDavRotateTokenInput.checked = false;
+            webDavRotateTokenInput.defaultChecked = false;
+        }
+    }
+
+    function populateWebDavState(trigger) {
+        if (!trigger) {
+            return;
+        }
+        const folderId = trigger.getAttribute("data-webdav-folder-id") || "";
+        const folderName = trigger.getAttribute("data-webdav-folder-name") || "";
+        const enabled = isTruthyAttributeValue(trigger.getAttribute("data-webdav-enabled"));
+        const allowWrite = isTruthyAttributeValue(trigger.getAttribute("data-webdav-allow-write"));
+        const url = trigger.getAttribute("data-webdav-url") || "";
+        const login = trigger.getAttribute("data-webdav-login") || "";
+        const hasPassword = isTruthyAttributeValue(trigger.getAttribute("data-webdav-has-password"));
+
+        if (webDavFolderIdInput) {
+            webDavFolderIdInput.value = folderId;
+        }
+        if (webDavFolderNameInput) {
+            webDavFolderNameInput.value = folderName;
+        }
+        if (webDavCurrent) {
+            webDavCurrent.hidden = !url;
+        }
+        if (webDavUrlInput) {
+            webDavUrlInput.value = url;
+        }
+        if (webDavLoginTitle) {
+            webDavLoginTitle.textContent = login || "—";
+        }
+        if (webDavStatusTitle) {
+            webDavStatusTitle.textContent = enabled ? "Включен" : "Отключен";
+        }
+        if (webDavModeTitle) {
+            webDavModeTitle.textContent = allowWrite ? "Чтение и запись" : "Только чтение";
+        }
+        if (webDavPasswordNote) {
+            webDavPasswordNote.hidden = !hasPassword;
+        }
+        if (webDavLoginInput) {
+            webDavLoginInput.value = login;
+            webDavLoginInput.defaultValue = login;
+        }
+        if (webDavPasswordInput) {
+            webDavPasswordInput.value = "";
+            webDavPasswordInput.defaultValue = "";
+        }
+        if (webDavEnabledInput) {
+            webDavEnabledInput.checked = enabled;
+            webDavEnabledInput.defaultChecked = enabled;
+        }
+        if (webDavAllowWriteInput) {
+            webDavAllowWriteInput.checked = allowWrite;
+            webDavAllowWriteInput.defaultChecked = allowWrite;
+        }
+        if (webDavRotateTokenInput) {
+            webDavRotateTokenInput.checked = false;
+            webDavRotateTokenInput.defaultChecked = false;
         }
     }
 
@@ -2077,6 +2210,13 @@
                 resetCollaborativeState();
                 populateCollaborativeState(this);
             }
+            if (this.getAttribute("data-open-modal") === webDavModalName
+                && this.hasAttribute("data-webdav-folder-id")) {
+                event.preventDefault();
+                event.stopPropagation();
+                resetWebDavState();
+                populateWebDavState(this);
+            }
             openModal(this.getAttribute("data-open-modal"));
             if (this.getAttribute("data-open-modal") === uploadModalName) {
                 ensureUploadFolderSelected();
@@ -2341,6 +2481,18 @@
         });
     }
 
+    if (itemWebDavAction) {
+        itemWebDavAction.addEventListener("click", function () {
+            if (!activeItemTrigger) {
+                return;
+            }
+            resetWebDavState();
+            populateWebDavState(activeItemTrigger);
+            closeModal(itemActionsModalName);
+            openModal(webDavModalName);
+        });
+    }
+
     if (itemRenameAction) {
         itemRenameAction.addEventListener("click", function () {
             if (!activeItemTrigger) {
@@ -2396,6 +2548,28 @@
         });
     }
 
+    if (webDavCopyUrl) {
+        webDavCopyUrl.addEventListener("click", async function () {
+            if (!webDavUrlInput || !webDavUrlInput.value) {
+                showToast("Нет адреса для копирования.", "Буфер обмена");
+                return;
+            }
+            const copied = await copyText(webDavUrlInput.value);
+            showToast(copied ? "Адрес WebDAV скопирован." : "Не удалось скопировать адрес.", copied ? "Буфер обмена" : "Ошибка");
+        });
+    }
+
+    if (webDavCopyLogin) {
+        webDavCopyLogin.addEventListener("click", async function () {
+            if (!webDavLoginInput || !webDavLoginInput.value) {
+                showToast("Нет логина для копирования.", "Буфер обмена");
+                return;
+            }
+            const copied = await copyText(webDavLoginInput.value);
+            showToast(copied ? "Логин WebDAV скопирован." : "Не удалось скопировать логин.", copied ? "Буфер обмена" : "Ошибка");
+        });
+    }
+
     const openShareResourceId = bodyDataset.shareOpenResourceId;
     const openShareResourceType = bodyDataset.shareOpenResourceType;
     if (openShareResourceId && openShareResourceType) {
@@ -2424,6 +2598,10 @@
             }
             if (itemOpenModal === itemPropertiesModalName) {
                 populatePropertiesState(trigger);
+            }
+            if (itemOpenModal === webDavModalName) {
+                resetWebDavState();
+                populateWebDavState(trigger);
             }
             openModal(itemOpenModal);
         }

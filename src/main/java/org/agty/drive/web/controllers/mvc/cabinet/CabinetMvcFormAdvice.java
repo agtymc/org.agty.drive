@@ -26,6 +26,7 @@ import org.agty.drive.dto.ItemPropertiesDto;
 import org.agty.drive.dto.ItemRenameDto;
 import org.agty.drive.dto.ProfileSecuritySettingsDto;
 import org.agty.drive.dto.ShareLinkCreateDto;
+import org.agty.drive.dto.WebDavFolderAccessCreateDto;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -94,6 +95,15 @@ public class CabinetMvcFormAdvice {
         CollaborativeAccessCreateDto dto = new CollaborativeAccessCreateDto();
         dto.setAllowWrite(false);
         dto.setAllowDelete(false);
+        return dto;
+    }
+
+    @ModelAttribute("webDavFolderAccessCreateDto")
+    public WebDavFolderAccessCreateDto webDavFolderAccessForm() {
+        WebDavFolderAccessCreateDto dto = new WebDavFolderAccessCreateDto();
+        dto.setAllowWrite(false);
+        dto.setEnabled(true);
+        dto.setRotateToken(false);
         return dto;
     }
 }

@@ -24,8 +24,8 @@ import org.agty.agtysql.model.annotations.Table;
 
 @Data
 @Entity
-@Table(name = "agdrv_folders", schema = "public")
-public class AgdrvFolder {
+@Table(name = "agdrv_folder_webdav_access", schema = "public")
+public class AgdrvFolderWebDavAccess {
     @Id
     private Long id;
 
@@ -35,27 +35,24 @@ public class AgdrvFolder {
     @Column(name = "updated_at", skipIfNull = true)
     private String updatedAt;
 
-    @Column(name = "deleted_at", skipIfNull = true)
-    private String deletedAt;
-
     @Column(name = "owner_id")
     private Long ownerId;
 
-    @Column(name = "parent_id")
-    private Long parentId;
+    @Column(name = "folder_id")
+    private Long folderId;
 
-    @Column(name = "name")
-    private String name;
+    @Column(name = "access_token")
+    private String accessToken;
 
-    @Column(name = "path_key")
-    private String pathKey;
+    @Column(name = "login_name")
+    private String loginName;
 
-    @Column(name = "description", skipIfNull = true)
-    private String description;
+    @Column(name = "password_hash")
+    private String passwordHash;
 
-    @Column(name = "expires_at", skipIfNull = true)
-    private String expiresAt;
+    @Column(name = "allow_write")
+    private Boolean allowWrite;
 
-    @Column(name = "sort_order")
-    private Integer sortOrder;
+    @Column(name = "is_enabled")
+    private Boolean isEnabled;
 }

@@ -41,7 +41,7 @@ public class AgdrvFile {
     @Column(name = "owner_id")
     private Long ownerId;
 
-    @Column(name = "folder_id", skipIfNull = true)
+    @Column(name = "folder_id")
     private Long folderId;
 
     @Column(name = "original_filename")

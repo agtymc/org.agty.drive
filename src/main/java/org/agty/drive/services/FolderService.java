@@ -112,31 +112,26 @@ public class FolderService {
         if (folderDto == null) {
             return "Папка не найдена.";
         }
-
-        String normalizedName = normalizeName(newName);
-        if (normalizedName == null) {
-            return "Введите название папки.";
-        }
-
-        if (existsByOwnerIdAndParentIdAndName(ownerId, folderDto.getParentId(), normalizedName, folderDto.getId())) {
-            return "В этой директории уже есть папка с таким названием.";
-        }
-
-        folderDto.setName(normalizedName);
-        folderDto.setPathKey(buildPathKey(ownerId, folderDto.getParentId(), normalizedName));
-        FolderDto saved = save(folderDto);
-        if (saved == null) {
-            return "Не удалось переименовать папку.";
-        }
-
-        updateChildPathKeys(saved);
-        return null;
+        return relocateByIdAndOwnerId(id, ownerId, folderDto.getParentId(), newName);
     }
 
     public String moveByIdAndOwnerId(Long id, Long ownerId, Long targetFolderId) {
         FolderDto folderDto = findByIdAndOwnerId(id, ownerId);
         if (folderDto == null) {
             return "Папка не найдена.";
+        }
+        return relocateByIdAndOwnerId(id, ownerId, targetFolderId, folderDto.getName());
+    }
+
+    public String relocateByIdAndOwnerId(Long id, Long ownerId, Long targetFolderId, String targetName) {
+        FolderDto folderDto = findByIdAndOwnerId(id, ownerId);
+        if (folderDto == null) {
+            return "Папка не найдена.";
+        }
+
+        String normalizedName = normalizeName(targetName);
+        if (normalizedName == null) {
+            return "Введите название папки.";
         }
 
         if (targetFolderId != null) {
@@ -157,22 +152,23 @@ public class FolderService {
             }
         }
 
-        if (folderDto.getParentId() == null && targetFolderId == null) {
-            return null;
-        }
-        if (folderDto.getParentId() != null && folderDto.getParentId().equals(targetFolderId)) {
+        boolean sameParent = folderDto.getParentId() == null
+                ? targetFolderId == null
+                : folderDto.getParentId().equals(targetFolderId);
+        if (sameParent && normalizedName.equals(folderDto.getName())) {
             return null;
         }
 
-        if (existsByOwnerIdAndParentIdAndName(ownerId, targetFolderId, folderDto.getName(), folderDto.getId())) {
+        if (existsByOwnerIdAndParentIdAndName(ownerId, targetFolderId, normalizedName, folderDto.getId())) {
             return "В целевой директории уже есть папка с таким названием.";
         }
 
         folderDto.setParentId(targetFolderId);
-        folderDto.setPathKey(buildPathKey(ownerId, targetFolderId, folderDto.getName()));
+        folderDto.setName(normalizedName);
+        folderDto.setPathKey(buildPathKey(ownerId, targetFolderId, normalizedName));
         FolderDto saved = save(folderDto);
         if (saved == null) {
-            return "Не удалось переместить папку.";
+            return "Не удалось обновить папку.";
         }
 
         updateChildPathKeys(saved);

@@ -35,6 +35,7 @@ import org.agty.drive.dto.ProfileSecuritySettingsDto;
 import org.agty.drive.dto.ShareLinkCreateDto;
 import org.agty.drive.dto.ShareLinkDto;
 import org.agty.drive.dto.SharedLibraryItemDto;
+import org.agty.drive.dto.WebDavFolderAccessCreateDto;
 import org.agty.drive.security.service.DriveUserDetails;
 import org.agty.drive.services.FileContentStorageService;
 import org.agty.drive.services.FileService;
@@ -45,6 +46,7 @@ import org.agty.drive.services.FolderService;
 import org.agty.drive.services.MimeTypePolicyService;
 import org.agty.drive.services.ShareLinkService;
 import org.agty.drive.services.UserService;
+import org.agty.drive.services.WebDavFolderAccessService;
 import org.agty.drive.web.MediaResponseSupport;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -86,6 +88,7 @@ public class CabinetMvcController {
     private final UserService userService;
     private final MimeTypePolicyService mimeTypePolicyService;
     private final CabinetMvcSupport cabinetMvcSupport;
+    private final WebDavFolderAccessService webDavFolderAccessService;
 
     public CabinetMvcController(FolderService folderService,
                                 FileService fileService,
@@ -96,7 +99,8 @@ public class CabinetMvcController {
                                 ShareLinkService shareLinkService,
                                 UserService userService,
                                 MimeTypePolicyService mimeTypePolicyService,
-                                CabinetMvcSupport cabinetMvcSupport) {
+                                CabinetMvcSupport cabinetMvcSupport,
+                                WebDavFolderAccessService webDavFolderAccessService) {
         this.folderService = folderService;
         this.fileService = fileService;
         this.fileContentStorageService = fileContentStorageService;
@@ -107,6 +111,7 @@ public class CabinetMvcController {
         this.userService = userService;
         this.mimeTypePolicyService = mimeTypePolicyService;
         this.cabinetMvcSupport = cabinetMvcSupport;
+        this.webDavFolderAccessService = webDavFolderAccessService;
     }
 
     @PostMapping("folders/add")
@@ -274,6 +279,43 @@ public class CabinetMvcController {
         );
         if (!collaborativeAccessService.unlock(session, access, password)) {
             redirectAttributes.addFlashAttribute("collaborativeError", "Неверный пароль.");
+        }
+        return cabinetMvcSupport.redirectCabinet(normalizedState);
+    }
+
+    @PostMapping("webdav/folder")
+    public String saveFolderWebDav(@ModelAttribute("webDavFolderAccessCreateDto") WebDavFolderAccessCreateDto dto,
+                                   @RequestParam(value = "allowWrite", defaultValue = "false") boolean allowWrite,
+                                   @RequestParam(value = "enabled", defaultValue = "false") boolean enabled,
+                                   @RequestParam(value = "rotateToken", defaultValue = "false") boolean rotateToken,
+                                   @ModelAttribute("cabinetState") CabinetPageStateDto cabinetState,
+                                   @AuthenticationPrincipal DriveUserDetails userDetails,
+                                   RedirectAttributes redirectAttributes) {
+        dto.setAllowWrite(allowWrite);
+        dto.setEnabled(enabled);
+        dto.setRotateToken(rotateToken);
+        CabinetPageStateDto normalizedState = cabinetMvcSupport.normalizeState(cabinetState);
+        WebDavFolderAccessService.SaveResult result =
+                webDavFolderAccessService.saveFolderAccess(userDetails.getUser().getId(), dto);
+        if (!result.success()) {
+            redirectAttributes.addFlashAttribute("webDavError", result.error());
+            redirectAttributes.addFlashAttribute("itemOpenModal", "webdav-folder-modal");
+            redirectAttributes.addFlashAttribute("itemOpenResourceType", "FOLDER");
+            redirectAttributes.addFlashAttribute("itemOpenResourceId", dto.getFolderId());
+        } else {
+            String baseUrl = cabinetMvcSupport.resolveCurrentBaseUri();
+            String accessUrl = baseUrl + "/dav-share/" + result.access().getAccessToken() + "/";
+            redirectAttributes.addFlashAttribute("webDavSuccess", "Настройка WebDAV сохранена.");
+            redirectAttributes.addFlashAttribute("webDavSummaryFolderName", result.access().getFolderName());
+            redirectAttributes.addFlashAttribute("webDavSummaryUrl", accessUrl);
+            redirectAttributes.addFlashAttribute("webDavSummaryLogin", result.access().getLoginName());
+            redirectAttributes.addFlashAttribute("webDavSummaryPassword", result.plainPassword());
+            redirectAttributes.addFlashAttribute("webDavSummaryMode", Boolean.TRUE.equals(result.access().getAllowWrite())
+                    ? "Чтение и запись"
+                    : "Только чтение");
+            redirectAttributes.addFlashAttribute("itemOpenModal", "webdav-folder-modal");
+            redirectAttributes.addFlashAttribute("itemOpenResourceType", "FOLDER");
+            redirectAttributes.addFlashAttribute("itemOpenResourceId", result.access().getFolderId());
         }
         return cabinetMvcSupport.redirectCabinet(normalizedState);
     }
