@@ -192,6 +192,11 @@ label {
     gap: 12px;
 }
 
+.folder-form,
+.folder-form > * {
+    min-width: 0;
+}
+
 .auth-form-actions {
     display: flex;
     align-items: center;
@@ -1380,6 +1385,39 @@ body[data-theme="dark"] .storage-bar {
     flex-wrap: wrap;
 }
 
+.copy-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+}
+
+.copy-field input {
+    min-width: 0;
+    width: 100%;
+}
+
+.copy-field-button {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.copy-field-button:hover {
+    background: color-mix(in srgb, var(--surface-soft) 92%, var(--accent));
+    border-color: color-mix(in srgb, var(--border) 84%, var(--accent));
+    transform: translateY(-1px);
+}
+
 .share-folder-table-wrap {
     max-height: 420px;
     margin-top: 12px;
@@ -1912,6 +1950,7 @@ body[data-theme="dark"] .drag-overlay-box {
 }
 
 .modal-card {
+    box-sizing: border-box;
     width: min(520px, 100%);
     padding: 18px;
     background: var(--surface);

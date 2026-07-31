@@ -303,19 +303,28 @@ public class CabinetMvcController {
             redirectAttributes.addFlashAttribute("itemOpenResourceType", "FOLDER");
             redirectAttributes.addFlashAttribute("itemOpenResourceId", dto.getFolderId());
         } else {
-            String baseUrl = cabinetMvcSupport.resolveCurrentBaseUri();
-            String accessUrl = baseUrl + "/dav-share/" + result.access().getAccessToken() + "/";
             redirectAttributes.addFlashAttribute("webDavSuccess", "Настройка WebDAV сохранена.");
-            redirectAttributes.addFlashAttribute("webDavSummaryFolderName", result.access().getFolderName());
-            redirectAttributes.addFlashAttribute("webDavSummaryUrl", accessUrl);
-            redirectAttributes.addFlashAttribute("webDavSummaryLogin", result.access().getLoginName());
-            redirectAttributes.addFlashAttribute("webDavSummaryPassword", result.plainPassword());
-            redirectAttributes.addFlashAttribute("webDavSummaryMode", Boolean.TRUE.equals(result.access().getAllowWrite())
-                    ? "Чтение и запись"
-                    : "Только чтение");
             redirectAttributes.addFlashAttribute("itemOpenModal", "webdav-folder-modal");
             redirectAttributes.addFlashAttribute("itemOpenResourceType", "FOLDER");
             redirectAttributes.addFlashAttribute("itemOpenResourceId", result.access().getFolderId());
+        }
+        return cabinetMvcSupport.redirectCabinet(normalizedState);
+    }
+
+    @PostMapping("webdav/folder/delete")
+    public String deleteFolderWebDav(@RequestParam("folderId") Long folderId,
+                                     @ModelAttribute("cabinetState") CabinetPageStateDto cabinetState,
+                                     @AuthenticationPrincipal DriveUserDetails userDetails,
+                                     RedirectAttributes redirectAttributes) {
+        CabinetPageStateDto normalizedState = cabinetMvcSupport.normalizeState(cabinetState);
+        String error = webDavFolderAccessService.deleteFolderAccess(userDetails.getUser().getId(), folderId);
+        if (error != null) {
+            redirectAttributes.addFlashAttribute("webDavError", error);
+            redirectAttributes.addFlashAttribute("itemOpenModal", "webdav-folder-modal");
+            redirectAttributes.addFlashAttribute("itemOpenResourceType", "FOLDER");
+            redirectAttributes.addFlashAttribute("itemOpenResourceId", folderId);
+        } else {
+            redirectAttributes.addFlashAttribute("webDavSuccess", "Доступ WebDAV удален.");
         }
         return cabinetMvcSupport.redirectCabinet(normalizedState);
     }

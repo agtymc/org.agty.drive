@@ -119,6 +119,25 @@ public class WebDavFolderAccessService {
         return saved == null ? SaveResult.error("Не удалось сохранить настройку WebDAV.") : SaveResult.saved(saved, plainPassword);
     }
 
+    public String deleteFolderAccess(Long ownerId, Long folderId) {
+        if (ownerId == null) {
+            return "Пользователь не найден.";
+        }
+        if (folderId == null) {
+            return "Папка для WebDAV не выбрана.";
+        }
+        FolderDto folder = folderService.findByIdAndOwnerId(folderId, ownerId);
+        if (folder == null) {
+            return "Папка для WebDAV не найдена.";
+        }
+        WebDavFolderAccessDto existing = findByOwnerAndFolder(ownerId, folderId);
+        if (existing == null) {
+            return "Настройка WebDAV для этой папки не найдена.";
+        }
+        webDavFolderAccessRepository.disableByOwnerAndFolder(ownerId, folderId);
+        return null;
+    }
+
     public AuthenticatedAccess authenticate(String token, String login, String password) {
         WebDavFolderAccessDto access = webDavFolderAccessRepository.findByToken(token);
         if (access == null || !Boolean.TRUE.equals(access.getIsEnabled())) {
