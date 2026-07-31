@@ -2209,6 +2209,10 @@ body[data-theme="dark"] .upload-dropzone {
     gap: 10px;
 }
 
+.action-submenu {
+    position: relative;
+}
+
 .action-menu-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2226,6 +2230,10 @@ body[data-theme="dark"] .upload-dropzone {
     text-align: left;
     background: var(--surface-soft);
     transition: background 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.action-submenu-trigger {
+    padding-right: 18px;
 }
 
 .action-menu-btn:hover:not(:disabled) {
@@ -2259,6 +2267,13 @@ body[data-theme="dark"] .upload-dropzone {
     gap: 3px;
 }
 
+.action-submenu-caret {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 1;
+}
+
 .action-menu-title {
     color: var(--text);
     font-size: 14px;
@@ -2285,9 +2300,52 @@ body[data-theme="dark"] .upload-dropzone {
     color: var(--danger);
 }
 
+.action-submenu-panel {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 10px);
+    width: min(320px, calc(100vw - 64px));
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-6px);
+    transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+    z-index: 3;
+}
+
+.action-submenu:hover .action-submenu-panel,
+.action-submenu:focus-within .action-submenu-panel {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+}
+
+.action-submenu-btn {
+    background: var(--surface-soft);
+}
+
 @media (max-width: 640px) {
     .action-menu-row {
         grid-template-columns: 1fr;
+    }
+
+    .action-submenu-panel {
+        position: static;
+        width: 100%;
+        margin-top: 10px;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        box-shadow: none;
+        background: transparent;
+        padding: 0;
+        border: 0;
     }
 }
 

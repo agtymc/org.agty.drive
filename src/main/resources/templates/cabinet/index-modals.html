@@ -220,27 +220,39 @@
                 <div class="item-actions-divider" aria-hidden="true"></div>
                 <div class="item-actions-label">Действия</div>
                 <div class="action-menu">
-                    <button type="button" class="action-menu-btn" data-item-collaborative-action hidden>
-                        <span class="action-menu-icon" aria-hidden="true">👥</span>
-                        <span class="action-menu-copy">
-                            <span class="action-menu-title">Совместный доступ</span>
-                            <span class="action-menu-text">Открыть папку для других пользователей</span>
-                        </span>
-                    </button>
-                    <button type="button" class="action-menu-btn" data-item-webdav-action hidden>
-                        <span class="action-menu-icon" aria-hidden="true">⇅</span>
-                        <span class="action-menu-copy">
-                            <span class="action-menu-title">Настроить WebDAV</span>
-                            <span class="action-menu-text">Отдельный адрес и логин для папки</span>
-                        </span>
-                    </button>
-                    <button type="button" class="action-menu-btn" data-item-share-action>
-                        <span class="action-menu-icon" aria-hidden="true">🔗</span>
-                        <span class="action-menu-copy">
-                            <span class="action-menu-title">Публичная ссылка</span>
-                            <span class="action-menu-text">Открыть доступ и настроить права</span>
-                        </span>
-                    </button>
+                    <div class="action-submenu">
+                        <button type="button" class="action-menu-btn action-submenu-trigger">
+                            <span class="action-menu-icon" aria-hidden="true">⇢</span>
+                            <span class="action-menu-copy">
+                                <span class="action-menu-title">Доступ</span>
+                                <span class="action-menu-text">Ссылки, WebDAV и общий доступ</span>
+                            </span>
+                            <span class="action-submenu-caret" aria-hidden="true">›</span>
+                        </button>
+                        <div class="action-submenu-panel">
+                            <button type="button" class="action-menu-btn action-submenu-btn" data-item-share-action>
+                                <span class="action-menu-icon" aria-hidden="true">🔗</span>
+                                <span class="action-menu-copy">
+                                    <span class="action-menu-title">Публичная ссылка</span>
+                                    <span class="action-menu-text">Открыть доступ и настроить права</span>
+                                </span>
+                            </button>
+                            <button type="button" class="action-menu-btn action-submenu-btn" data-item-collaborative-action hidden>
+                                <span class="action-menu-icon" aria-hidden="true">👥</span>
+                                <span class="action-menu-copy">
+                                    <span class="action-menu-title">Совместный доступ</span>
+                                    <span class="action-menu-text">Открыть папку для других пользователей</span>
+                                </span>
+                            </button>
+                            <button type="button" class="action-menu-btn action-submenu-btn" data-item-webdav-action hidden>
+                                <span class="action-menu-icon" aria-hidden="true">⇅</span>
+                                <span class="action-menu-copy">
+                                    <span class="action-menu-title">Настроить WebDAV</span>
+                                    <span class="action-menu-text">Отдельный адрес и логин для папки</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                     <div class="action-menu-row">
                         <button type="button" class="action-menu-btn" data-item-rename-action>
                             <span class="action-menu-icon" aria-hidden="true">✎</span>
