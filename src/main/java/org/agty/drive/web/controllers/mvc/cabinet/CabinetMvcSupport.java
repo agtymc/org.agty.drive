@@ -24,6 +24,7 @@ import org.agty.drive.dto.CabinetPageStateDto;
 import org.agty.drive.dto.FileItemDto;
 import org.agty.drive.dto.FolderDto;
 import org.agty.drive.dto.SharedLibraryItemDto;
+import org.agty.drive.dto.WebDavFolderAccessDto;
 import org.agty.drive.security.service.DriveUserDetails;
 import org.agty.drive.services.AuditLogService;
 import org.agty.drive.services.CollaborativeAccessService;
@@ -42,6 +43,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Component
 public class CabinetMvcSupport {
@@ -287,6 +289,7 @@ public class CabinetMvcSupport {
         model.addAttribute("sharedStatusFilter", "all");
         model.addAttribute("sharedTypeFilter", "all");
         model.addAttribute("uploadExistingFileNamesByFolderId", java.util.Map.of());
+        model.addAttribute("webDavBaseUrl", resolveCurrentBaseUri());
         model.addAttribute("currentPage", 1);
         model.addAttribute("pageSize", state.getSize());
         model.addAttribute("pageSizeOptions", List.of(20, 50, 100));
@@ -295,6 +298,10 @@ public class CabinetMvcSupport {
         model.addAttribute("shareLinksByFileId", java.util.Map.of());
         model.addAttribute("sharedItems", List.of());
         model.addAttribute("sharedSummary", java.util.Map.of());
+        Map<Long, WebDavFolderAccessDto> webDavAccessByFolderId = webDavFolderAccessService.mapByFolderId(userId);
+        model.addAttribute("providedWebDavFolders", webDavAccessByFolderId.values().stream()
+                .filter(item -> Boolean.TRUE.equals(item.getIsEnabled()))
+                .toList());
 
         if (accessId == null) {
             model.addAttribute("pageTitle", "Совместный доступ");

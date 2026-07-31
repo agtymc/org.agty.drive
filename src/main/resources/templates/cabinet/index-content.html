@@ -156,6 +156,7 @@
                         <div class="share-indicators">
                             <span class="share-indicator" th:if="${folderShare != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span>
                             <span class="share-indicator collaborative-indicator" th:if="${collaborativeShare != null}" title="Есть совместный доступ" aria-label="Есть совместный доступ">👥</span>
+                            <span class="share-indicator webdav-indicator" th:if="${webDavAccess != null and webDavAccess.isEnabled}" title="Подключен WebDAV" aria-label="Подключен WebDAV">⇅</span>
                         </div>
                     </td>
                     <td>
@@ -217,6 +218,7 @@
                         <div class="share-indicators">
                             <span class="share-indicator" th:if="${folderShare != null}" title="Есть публичная ссылка" aria-label="Есть публичная ссылка">🔗</span>
                             <span class="share-indicator collaborative-indicator" th:if="${collaborativeShare != null}" title="Есть совместный доступ" aria-label="Есть совместный доступ">👥</span>
+                            <span class="share-indicator webdav-indicator" th:if="${webDavAccess != null and webDavAccess.isEnabled}" title="Подключен WebDAV" aria-label="Подключен WebDAV">⇅</span>
                         </div>
                     </div>
                     <a class="grid-card-preview" th:href="${cabinetRoutes.pagePath('files', folder.id, viewMode, sortMode, searchQuery, searchScope, sharedStatusFilter, sharedTypeFilter, null, pageSize)}"><div class="entry-icon folder grid-folder-icon"></div></a>

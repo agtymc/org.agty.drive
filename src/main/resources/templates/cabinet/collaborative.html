@@ -20,6 +20,60 @@
                 <div class="notice-banner error" th:if="${collaborativeError}" th:text="${collaborativeError}">Ошибка</div>
 
                 <div th:if="${!collaborativeBrowsing}">
+                    <section class="panel" th:if="${not #lists.isEmpty(providedWebDavFolders)}" style="margin-bottom:24px;">
+                        <div class="panel-head">
+                            <h2>Подключен WebDAV</h2>
+                        </div>
+                        <table class="file-table collaborative-file-table">
+                            <colgroup>
+                                <col class="col-name">
+                                <col class="col-owner">
+                                <col class="col-rights">
+                                <col class="col-action">
+                            </colgroup>
+                            <thead>
+                            <tr>
+                                <th>Директория</th>
+                                <th>Логин</th>
+                                <th>Режим</th>
+                                <th>Действия</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="item : ${providedWebDavFolders}"
+                                class="folder-row"
+                                th:attr="data-folder-row=true,data-href=${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}">
+                                <td>
+                                    <div class="entry-cell">
+                                        <div class="entry-icon folder"></div>
+                                        <div class="entry-main">
+                                            <a class="entry-title entry-link"
+                                               th:href="${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}"
+                                               th:text="${item.folderName}">Папка</a>
+                                            <div class="entry-note">Доступ по WebDAV активен</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.loginName}">client</div>
+                                    <div class="entry-note">Отдельный логин WebDAV</div>
+                                </td>
+                                <td>
+                                    <div class="entry-title" th:text="${item.allowWrite ? 'Чтение и запись' : 'Только чтение'}">Только чтение</div>
+                                    <div class="entry-note" th:text="${item.allowWrite ? 'Разрешено изменять содержимое' : 'Разрешено только чтение содержимого'}">Разрешено только чтение содержимого</div>
+                                </td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="inline-link" th:href="${cabinetRoutes.pagePath('files', item.folderId, 'list', 'name_asc', null, 'current', null, null, null, null, 20)}">Открыть в диске</a>
+                                        <button type="button" class="inline-link" data-open-modal="webdav-folder-modal"
+                                                th:attr="data-webdav-folder-id=${item.folderId},data-webdav-folder-name=${item.folderName},data-webdav-enabled=${item.isEnabled ? 'true' : 'false'},data-webdav-login=${item.loginName},data-webdav-url=${webDavBaseUrl + '/dav-share/' + item.accessToken + '/'},data-webdav-allow-write=${item.allowWrite ? 'true' : 'false'},data-webdav-has-password=${item.passwordHash != null and !item.passwordHash.isBlank() ? 'true' : 'false'}">Настроить</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
                     <section class="panel" th:if="${not #lists.isEmpty(providedCollaborativeFolders)}" style="margin-bottom:24px;">
                         <div class="panel-head">
                             <h2>Я предоставил доступ</h2>
@@ -310,6 +364,65 @@
             <label class="checkbox-row"><input type="checkbox" th:field="*{allowDelete}" data-collab-delete-input><span>Разрешить удаление</span></label>
             <button type="submit">Сохранить доступ</button>
         </form>
+    </div>
+</div>
+
+<div class="modal-backdrop" data-modal="webdav-folder-modal" hidden>
+    <div class="modal-card">
+        <div class="drive-panel-head">
+            <div>
+                <div class="section-eyebrow">WebDAV</div>
+                <h2>Настройка WebDAV</h2>
+            </div>
+            <button class="modal-close" type="button" data-close-modal="webdav-folder-modal">×</button>
+        </div>
+        <form class="folder-form" method="post" th:action="@{/cabinet/webdav/folder}" th:object="${webDavFolderAccessCreateDto}">
+            <th:block th:replace="~{cabinet/fragments :: cabinet-state-fields(true)}"></th:block>
+            <input type="hidden" th:field="*{folderId}" data-webdav-folder-id-input>
+            <div class="share-current" data-webdav-current hidden>
+                <div class="share-current-title">Текущее подключение WebDAV</div>
+                <div class="copy-field">
+                    <input type="text" value="" data-webdav-url-input readonly>
+                    <button type="button" class="copy-field-button" data-webdav-copy-url title="Копировать адрес" aria-label="Копировать адрес">⧉</button>
+                </div>
+                <div class="copy-field">
+                    <input type="text" value="" data-webdav-dav-url-input readonly>
+                    <button type="button" class="copy-field-button" data-webdav-copy-dav-url title="Копировать dav(s) адрес" aria-label="Копировать dav(s) адрес">⧉</button>
+                </div>
+                <div class="copy-field">
+                    <input type="text" value="" data-webdav-webdav-url-input readonly>
+                    <button type="button" class="copy-field-button" data-webdav-copy-webdav-url title="Копировать webdav(s) адрес" aria-label="Копировать webdav(s) адрес">⧉</button>
+                </div>
+                <div class="share-current-meta">
+                    <span><strong>Логин:</strong> <span data-webdav-login-title>—</span></span>
+                    <span aria-hidden="true">•</span>
+                    <span><strong>Статус:</strong> <span data-webdav-status-title>Отключен</span></span>
+                    <span aria-hidden="true">•</span>
+                    <span data-webdav-mode-title>Только чтение</span>
+                </div>
+            </div>
+            <label>
+                Папка
+                <input type="text" value="" data-webdav-folder-name-input readonly>
+            </label>
+            <label>
+                Логин WebDAV
+                <input type="text" th:field="*{loginName}" maxlength="120" placeholder="Например, client-docs" data-webdav-login-input required>
+            </label>
+            <label>
+                Пароль WebDAV
+                <input type="text" th:field="*{password}" maxlength="255" placeholder="Минимум 8 символов" data-webdav-password-input>
+            </label>
+            <div class="status-text" data-webdav-password-note hidden>Пароль уже сохранен. Оставьте поле пустым, чтобы не менять его.</div>
+            <label class="checkbox-row"><input type="checkbox" th:field="*{enabled}" data-webdav-enabled-input><span>Включить доступ</span></label>
+            <label class="checkbox-row"><input type="checkbox" th:field="*{allowWrite}" data-webdav-allow-write-input><span>Разрешить запись и удаление</span></label>
+            <label class="checkbox-row"><input type="checkbox" th:field="*{rotateToken}" data-webdav-rotate-token-input><span>Переиздать адрес подключения</span></label>
+            <div class="row-actions confirm-actions">
+                <button type="button" class="inline-link inline-link-danger" th:attr="data-delete-action=@{/cabinet/webdav/folder/delete}" data-webdav-delete-button hidden>Удалить доступ</button>
+                <button type="submit">Сохранить WebDAV</button>
+            </div>
+        </form>
+        <div class="error-text" th:if="${webDavError}" th:text="${webDavError}">Ошибка</div>
     </div>
 </div>
 

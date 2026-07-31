@@ -908,29 +908,48 @@ body[data-theme="dark"] .storage-bar {
 
 .share-indicator-cell {
     color: var(--muted);
+    width: 34px;
+    min-width: 34px;
+    padding-left: 8px;
+    padding-right: 8px;
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: normal !important;
+    vertical-align: middle;
 }
 
 .share-indicators {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
+    min-height: 22px;
 }
 
 .share-indicator {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
-    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    font-size: 12px;
     line-height: 1;
 }
 
+.share-indicator:first-child {
+    transform: translateY(1px) scaleY(0.78);
+    transform-origin: center;
+}
+
 .collaborative-indicator {
-    font-size: 13px;
+    font-size: 12px;
+}
+
+.webdav-indicator {
+    color: #77b7ff;
+    font-size: 14px;
+    font-weight: 700;
+    transform: translateY(3px);
 }
 
 .entry-icon {
