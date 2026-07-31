@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.1 - 2026-07-31
+
 ### Added
 - Folder-level WebDAV in `Файлы` with separate login and password per folder.
 - WebDAV setup in the folder actions menu under `Доступ > Настроить WebDAV`.
