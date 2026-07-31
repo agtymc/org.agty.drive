@@ -134,7 +134,7 @@ public class WebDavFolderAccessService {
         if (existing == null) {
             return "Настройка WebDAV для этой папки не найдена.";
         }
-        webDavFolderAccessRepository.disableByOwnerAndFolder(ownerId, folderId);
+        webDavFolderAccessRepository.deleteByOwnerAndFolder(ownerId, folderId);
         return null;
     }
 

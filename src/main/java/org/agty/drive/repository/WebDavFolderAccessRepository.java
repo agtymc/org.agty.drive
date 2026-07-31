@@ -152,10 +152,38 @@ public class WebDavFolderAccessRepository {
         }
     }
 
+    public int deleteByOwnerAndFolder(Long ownerId, Long folderId) {
+        if (ownerId == null || folderId == null) {
+            return 0;
+        }
+        String query = """
+                DELETE FROM public.agdrv_folder_webdav_access
+                WHERE owner_id = ?
+                  AND folder_id = ?
+                """;
+
+        try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow();
+             var statement = sql.sql().getConnector().getConnection().prepareStatement(query)) {
+            statement.setLong(1, ownerId);
+            statement.setLong(2, folderId);
+            int deleted = statement.executeUpdate();
+            if (!sql.sql().getConnector().getConnection().getAutoCommit()) {
+                sql.sql().getConnector().getConnection().commit();
+            }
+            return deleted;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private WebDavFolderAccessDto findOne(String query) {
         try (AgtySQLPool.PooledAgtySQL sql = ConnectionPool.POOL.borrow()) {
             SqlRow row = sql.sql().fetch(query);
-            return row == null ? null : WebDavFolderAccessConverter.rowToDto(row);
+            if (row == null) {
+                return null;
+            }
+            WebDavFolderAccessDto dto = WebDavFolderAccessConverter.rowToDto(row);
+            return dto.getId() == null ? null : dto;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

@@ -286,6 +286,47 @@ class WebDavControllerTest extends IntegrationTestBootstrap {
     }
 
     @Test
+    void shouldDeleteFolderScopedWebDavAccessCompletely() throws Exception {
+        UserDto user = userService.findByLogin("admin");
+        assertNotNull(user);
+
+        String folderName = "delete-dav-" + UUID.randomUUID();
+        String login = "client-" + UUID.randomUUID().toString().substring(0, 8);
+        String password = "Secret-" + UUID.randomUUID();
+
+        FolderDto folderDto = new FolderDto();
+        folderDto.setOwnerId(user.getId());
+        folderDto.setName(folderName);
+        folderDto.setPathKey(folderService.buildPathKeyForCreate(user.getId(), null, folderName));
+        FolderDto folder = folderService.save(folderDto);
+        assertNotNull(folder);
+
+        WebDavFolderAccessCreateDto accessCreateDto = new WebDavFolderAccessCreateDto();
+        accessCreateDto.setFolderId(folder.getId());
+        accessCreateDto.setLoginName(login);
+        accessCreateDto.setPassword(password);
+        accessCreateDto.setAllowWrite(true);
+        accessCreateDto.setEnabled(true);
+        accessCreateDto.setRotateToken(false);
+
+        WebDavFolderAccessService.SaveResult saveResult =
+                webDavFolderAccessService.saveFolderAccess(user.getId(), accessCreateDto);
+        org.junit.jupiter.api.Assertions.assertTrue(saveResult.success());
+
+        String token = saveResult.access().getAccessToken();
+        String authorization = basic(login, password);
+
+        assertNotNull(webDavFolderAccessService.findByOwnerAndFolder(user.getId(), folder.getId()));
+
+        assertNull(webDavFolderAccessService.deleteFolderAccess(user.getId(), folder.getId()));
+        assertNull(webDavFolderAccessService.findByOwnerAndFolder(user.getId(), folder.getId()));
+
+        mockMvc.perform(request(HttpMethod.OPTIONS, "/dav-share/{token}", token)
+                        .header(HttpHeaders.AUTHORIZATION, authorization))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void shouldDenyWriteForReadOnlyFolderScopedWebDav() throws Exception {
         UserDto user = userService.findByLogin("admin");
         assertNotNull(user);
