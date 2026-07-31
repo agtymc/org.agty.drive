@@ -67,6 +67,20 @@ public class ApplicationInfo {
         return pageTitle + " :: " + getTitle();
     }
 
+    public String getVersion() {
+        String configuredVersion = LocalConfig.getString("application.version", "");
+        if (AgtyUtils.stringNonNullOrEmpty(configuredVersion)) {
+            return configuredVersion.trim();
+        }
+
+        Package applicationPackage = ApplicationInfo.class.getPackage();
+        if (applicationPackage != null && AgtyUtils.stringNonNullOrEmpty(applicationPackage.getImplementationVersion())) {
+            return applicationPackage.getImplementationVersion().trim();
+        }
+
+        return "dev";
+    }
+
     private String normalizeBaseUri(String value) {
         if (!AgtyUtils.stringNonNullOrEmpty(value)) {
             return "";

@@ -404,6 +404,14 @@ body[data-theme="dark"] .storage-bar {
     width: 100%;
 }
 
+.storage-version {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.3;
+    opacity: 0.8;
+    text-align: center;
+}
+
 .storage-line {
     display: flex;
     align-items: center;

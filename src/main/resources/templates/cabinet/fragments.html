@@ -33,6 +33,7 @@
             <form method="post" th:action="@{/logout}" class="storage-logout-form">
                 <button class="ghost-btn storage-logout-btn" type="submit">Выйти</button>
             </form>
+            <div class="storage-version" th:text="${'Версия ' + applicationInfo.version}">Версия dev</div>
         </div>
     </aside>
 </th:block>
@@ -67,6 +68,7 @@
             <form method="post" th:action="@{/logout}" class="storage-logout-form">
                 <button class="ghost-btn storage-logout-btn" type="submit">Выйти</button>
             </form>
+            <div class="storage-version" th:text="${'Версия ' + applicationInfo.version}">Версия dev</div>
         </div>
     </aside>
 </th:block>
