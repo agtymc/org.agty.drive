@@ -117,10 +117,14 @@
     const webDavFolderIdInput = webDavForm ? webDavForm.querySelector("[data-webdav-folder-id-input]") : null;
     const webDavCurrent = webDavForm ? webDavForm.querySelector("[data-webdav-current]") : null;
     const webDavUrlInput = webDavForm ? webDavForm.querySelector("[data-webdav-url-input]") : null;
+    const webDavDavUrlInput = webDavForm ? webDavForm.querySelector("[data-webdav-dav-url-input]") : null;
+    const webDavWebDavUrlInput = webDavForm ? webDavForm.querySelector("[data-webdav-webdav-url-input]") : null;
     const webDavLoginTitle = webDavForm ? webDavForm.querySelector("[data-webdav-login-title]") : null;
     const webDavStatusTitle = webDavForm ? webDavForm.querySelector("[data-webdav-status-title]") : null;
     const webDavModeTitle = webDavForm ? webDavForm.querySelector("[data-webdav-mode-title]") : null;
     const webDavCopyUrl = webDavForm ? webDavForm.querySelector("[data-webdav-copy-url]") : null;
+    const webDavCopyDavUrl = webDavForm ? webDavForm.querySelector("[data-webdav-copy-dav-url]") : null;
+    const webDavCopyWebDavUrl = webDavForm ? webDavForm.querySelector("[data-webdav-copy-webdav-url]") : null;
     const webDavCopyLogin = webDavForm ? webDavForm.querySelector("[data-webdav-copy-login]") : null;
     const webDavFolderNameInput = webDavForm ? webDavForm.querySelector("[data-webdav-folder-name-input]") : null;
     const webDavPasswordNote = webDavForm ? webDavForm.querySelector("[data-webdav-password-note]") : null;
@@ -129,6 +133,7 @@
     const webDavEnabledInput = webDavForm ? webDavForm.querySelector("[data-webdav-enabled-input]") : null;
     const webDavAllowWriteInput = webDavForm ? webDavForm.querySelector("[data-webdav-allow-write-input]") : null;
     const webDavRotateTokenInput = webDavForm ? webDavForm.querySelector("[data-webdav-rotate-token-input]") : null;
+    const webDavDeleteButton = webDavForm ? webDavForm.querySelector("[data-webdav-delete-button]") : null;
     const copyTriggers = document.querySelectorAll("[data-copy-text]");
     const previewTriggers = document.querySelectorAll("[data-preview-trigger]");
     const previewModal = document.querySelector('[data-modal="preview-modal"]');
@@ -1187,6 +1192,7 @@
         if (warningModalSkip) {
             warningModalSkip.textContent = "Пропустить";
             warningModalSkip.hidden = true;
+            warningModalSkip.style.display = "none";
         }
         if (uploadOverwriteExistingInput) {
             uploadOverwriteExistingInput.value = "false";
@@ -1218,6 +1224,7 @@
         if (warningModalSkip) {
             const hasSkipAction = typeof options?.onSkip === "function";
             warningModalSkip.hidden = !hasSkipAction;
+            warningModalSkip.style.display = hasSkipAction ? "" : "none";
             warningModalSkip.textContent = options?.skipText || "Пропустить";
         }
         pendingWarningAction = typeof options?.onConfirm === "function" ? options.onConfirm : null;
@@ -1702,6 +1709,12 @@
         if (webDavUrlInput) {
             webDavUrlInput.value = "";
         }
+        if (webDavDavUrlInput) {
+            webDavDavUrlInput.value = "";
+        }
+        if (webDavWebDavUrlInput) {
+            webDavWebDavUrlInput.value = "";
+        }
         if (webDavLoginTitle) {
             webDavLoginTitle.textContent = "—";
         }
@@ -1734,6 +1747,27 @@
             webDavRotateTokenInput.checked = false;
             webDavRotateTokenInput.defaultChecked = false;
         }
+        if (webDavDeleteButton) {
+            webDavDeleteButton.hidden = true;
+        }
+    }
+
+    function buildWebDavSchemeUrl(baseUrl, login, scheme) {
+        if (!baseUrl) {
+            return "";
+        }
+        try {
+            const parsed = new URL(baseUrl);
+            const isSecure = parsed.protocol === "https:";
+            const normalizedScheme = scheme || "dav";
+            const effectiveScheme = isSecure
+                ? (normalizedScheme === "webdav" ? "webdavs" : "davs")
+                : normalizedScheme;
+            const loginPart = login ? `${encodeURIComponent(login)}@` : "";
+            return `${effectiveScheme}://${loginPart}${parsed.host}${parsed.pathname}`;
+        } catch (_) {
+            return "";
+        }
     }
 
     function populateWebDavState(trigger) {
@@ -1759,6 +1793,12 @@
         }
         if (webDavUrlInput) {
             webDavUrlInput.value = url;
+        }
+        if (webDavDavUrlInput) {
+            webDavDavUrlInput.value = buildWebDavSchemeUrl(url, login, "dav");
+        }
+        if (webDavWebDavUrlInput) {
+            webDavWebDavUrlInput.value = buildWebDavSchemeUrl(url, login, "webdav");
         }
         if (webDavLoginTitle) {
             webDavLoginTitle.textContent = login || "—";
@@ -1791,6 +1831,9 @@
         if (webDavRotateTokenInput) {
             webDavRotateTokenInput.checked = false;
             webDavRotateTokenInput.defaultChecked = false;
+        }
+        if (webDavDeleteButton) {
+            webDavDeleteButton.hidden = !url;
         }
     }
 
@@ -2567,6 +2610,48 @@
             }
             const copied = await copyText(webDavLoginInput.value);
             showToast(copied ? "Логин WebDAV скопирован." : "Не удалось скопировать логин.", copied ? "Буфер обмена" : "Ошибка");
+        });
+    }
+
+    if (webDavCopyDavUrl) {
+        webDavCopyDavUrl.addEventListener("click", async function () {
+            if (!webDavDavUrlInput || !webDavDavUrlInput.value) {
+                showToast("Нет dav:// адреса для копирования.", "Буфер обмена");
+                return;
+            }
+            const copied = await copyText(webDavDavUrlInput.value);
+            showToast(copied ? "Адрес dav:// скопирован." : "Не удалось скопировать адрес.", copied ? "Буфер обмена" : "Ошибка");
+        });
+    }
+
+    if (webDavCopyWebDavUrl) {
+        webDavCopyWebDavUrl.addEventListener("click", async function () {
+            if (!webDavWebDavUrlInput || !webDavWebDavUrlInput.value) {
+                showToast("Нет webdav:// адреса для копирования.", "Буфер обмена");
+                return;
+            }
+            const copied = await copyText(webDavWebDavUrlInput.value);
+            showToast(copied ? "Адрес webdav:// скопирован." : "Не удалось скопировать адрес.", copied ? "Буфер обмена" : "Ошибка");
+        });
+    }
+
+    if (webDavDeleteButton) {
+        webDavDeleteButton.addEventListener("click", function () {
+            if (!webDavForm || !webDavFolderNameInput || !webDavDeleteButton.hasAttribute("data-delete-action")) {
+                return;
+            }
+            const deleteAction = webDavDeleteButton.getAttribute("data-delete-action");
+            const folderName = webDavFolderNameInput.value || "Папка";
+            openWarningModal({
+                title: "Удалить доступ WebDAV?",
+                message: "WebDAV-адрес и доступ по этим учетным данным будут отключены сразу.",
+                confirmText: "Удалить доступ",
+                target: folderName,
+                onConfirm: () => {
+                    webDavForm.action = deleteAction;
+                    webDavForm.submit();
+                }
+            });
         });
     }
 
