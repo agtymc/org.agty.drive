@@ -246,6 +246,20 @@ After installation, the script:
 - registers the `systemd` service;
 - starts the application.
 
+## Nginx Reverse Proxy
+
+When AGTY/DRIVE is published through Nginx, disable request-body buffering. Otherwise, Nginx receives the entire uploaded file into its temporary storage before forwarding it to the application, which appears as a long pause at `95%` for large files.
+
+Add the following directives to the proxy `location`:
+
+```nginx
+proxy_http_version 1.1;
+proxy_request_buffering off;
+proxy_pass http://127.0.0.1:8091;
+```
+
+Keep `client_max_body_size` at least as large as the application upload limits. See [docs/NGINX.md](docs/NGINX.md) for a complete HTTPS configuration and verification steps.
+
 ## How update works
 
 To update the installed service, run:
@@ -295,6 +309,7 @@ If you decline:
 ## Additional Documentation
 
 - [docs/DOCKER_POSTGRESQL.md](docs/DOCKER_POSTGRESQL.md) - Docker and PostgreSQL setup for AGTY/DRIVE
+- [docs/NGINX.md](docs/NGINX.md) - Nginx setup for streaming large uploads
 - [docs/MAVEN.md](docs/MAVEN.md) - running, building, and testing the project through Maven Wrapper
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md) - end-user manual
 

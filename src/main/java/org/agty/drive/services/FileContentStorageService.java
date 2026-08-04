@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,34 +54,19 @@ public class FileContentStorageService {
         }
     }
 
-    public Path createStagingFile(String extension) {
-        try {
-            Path stagingDir = stagingDir();
-            Files.createDirectories(stagingDir);
-            String suffix = extension == null || extension.isBlank() ? ".tmp" : "." + extension.toLowerCase();
-            return Files.createTempFile(stagingDir, "upload-", suffix);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to create staging upload file", e);
-        }
-    }
-
-    public void moveIntoStorage(Path stagingPath, String storageName) {
-        if (stagingPath == null) {
-            throw new IllegalArgumentException("stagingPath is required");
-        }
+    public Path prepareStoragePath(String storageName) {
         if (storageName == null || storageName.isBlank()) {
             throw new IllegalArgumentException("storageName is required");
         }
-
         try {
             Path path = resolve(storageName);
             Path parent = path.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.move(stagingPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return path;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to move staging upload into storage: " + storageName, e);
+            throw new RuntimeException("Failed to prepare storage path: " + storageName, e);
         }
     }
 
@@ -90,7 +74,6 @@ public class FileContentStorageService {
         if (storageName == null || storageName.isBlank()) {
             return null;
         }
-
         Path path = resolve(storageName);
         if (!Files.exists(path) || !Files.isRegularFile(path)) {
             return null;
@@ -146,18 +129,6 @@ public class FileContentStorageService {
             cleanupEmptyParents(path.getParent());
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete file content: " + storageName, e);
-        }
-    }
-
-    public void deleteStagingFile(Path path) {
-        if (path == null) {
-            return;
-        }
-        try {
-            Files.deleteIfExists(path);
-            cleanupEmptyParents(path.getParent());
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to delete staging file: " + path, e);
         }
     }
 

@@ -225,7 +225,7 @@ public class FileService {
         }
 
         MultipartFile multipartFile = uploadDto.getFile();
-        Path stagingPath = null;
+        Path storagePath = null;
         String finalStorageName = null;
         boolean repositorySaved = false;
         try {
@@ -234,9 +234,9 @@ public class FileService {
             String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(multipartFile.getContentType(), extension);
             String storageKey = StoragePathSupport.buildStorageKey(ownerId, originalFilename, AppTime.today());
             finalStorageName = StoragePathSupport.buildStorageName(storageKey, extension, AppTime.today());
-            stagingPath = fileContentStorageService.createStagingFile(extension);
-            multipartFile.transferTo(stagingPath.toFile());
-            long actualSizeBytes = Files.size(stagingPath);
+            storagePath = fileContentStorageService.prepareStoragePath(finalStorageName);
+            multipartFile.transferTo(storagePath.toFile());
+            long actualSizeBytes = Files.size(storagePath);
 
             if (Boolean.TRUE.equals(uploadDto.getOverwriteExisting())) {
                 FileItemDto existingFile = fileRepository.findByOwnerIdAndFolderIdAndOriginalFilename(ownerId, uploadDto.getFolderId(), originalFilename);
@@ -262,9 +262,6 @@ public class FileService {
             fileItemDto.setPreviewStatus("NONE");
             fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
             fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
-
-            fileContentStorageService.moveIntoStorage(stagingPath, finalStorageName);
-            stagingPath = null;
 
             FileItemDto saved = saveUploadedFileRecord(
                     fileItemDto,
@@ -295,13 +292,6 @@ public class FileService {
                 }
             }
             throw e;
-        } finally {
-            if (stagingPath != null) {
-                try {
-                    fileContentStorageService.deleteStagingFile(stagingPath);
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
     }
 
@@ -319,7 +309,7 @@ public class FileService {
             return null;
         }
 
-        Path stagingPath = null;
+        Path storagePath = null;
         String finalStorageName = null;
         boolean repositorySaved = false;
         try {
@@ -327,10 +317,10 @@ public class FileService {
             String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(contentType, extension);
             String storageKey = StoragePathSupport.buildStorageKey(ownerId, normalizedFilename, AppTime.today());
             finalStorageName = StoragePathSupport.buildStorageName(storageKey, extension, AppTime.today());
-            stagingPath = fileContentStorageService.createStagingFile(extension);
+            storagePath = fileContentStorageService.prepareStoragePath(finalStorageName);
             long actualSizeBytes = 0L;
 
-            try (OutputStream outputStream = Files.newOutputStream(stagingPath)) {
+            try (OutputStream outputStream = Files.newOutputStream(storagePath)) {
                 byte[] buffer = new byte[1024 * 1024];
                 int read;
                 while ((read = inputStream.read(buffer)) >= 0) {
@@ -368,9 +358,6 @@ public class FileService {
             fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
             fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
 
-            fileContentStorageService.moveIntoStorage(stagingPath, finalStorageName);
-            stagingPath = null;
-
             FileItemDto saved = saveUploadedFileRecord(
                     fileItemDto,
                     ownerId,
@@ -400,13 +387,6 @@ public class FileService {
                 }
             }
             throw e;
-        } finally {
-            if (stagingPath != null) {
-                try {
-                    fileContentStorageService.deleteStagingFile(stagingPath);
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
     }
 

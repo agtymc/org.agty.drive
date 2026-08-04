@@ -71,6 +71,7 @@ AGTY/DRIVE подходит для:
 ## Документация
 
 - [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- [docs/NGINX.md](docs/NGINX.md)
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md)
 - [docs/WEBDAV.md](docs/WEBDAV.md)
 
@@ -254,6 +255,20 @@ curl -fsSL https://raw.githubusercontent.com/agtymc/org.agty.drive/master/instal
 - зарегистрирует `systemd` service;
 - запустит приложение.
 
+## Публикация через Nginx
+
+При работе через Nginx отключите буферизацию тела запроса, иначе Nginx сначала полностью сохранит загружаемый файл во временную директорию и только затем передаст его приложению. Для больших файлов это выглядит как длительная пауза на `95%`.
+
+Добавьте в проксирующий `location`:
+
+```nginx
+proxy_http_version 1.1;
+proxy_request_buffering off;
+proxy_pass http://127.0.0.1:8091;
+```
+
+Полный пример с HTTPS, лимитами и командами проверки приведен в [docs/NGINX.md](docs/NGINX.md).
+
 ## Как работает update
 
 Для обновления установленного сервиса используйте:
@@ -303,6 +318,7 @@ sudo bash /opt/org.agty.drive/install/update.sh
 ## Дополнительная документация
 
 - [docs/DOCKER_POSTGRESQL.md](docs/DOCKER_POSTGRESQL.md) - установка Docker и PostgreSQL для AGTY/DRIVE
+- [docs/NGINX.md](docs/NGINX.md) - настройка Nginx и потоковой загрузки больших файлов
 - [docs/MAVEN.md](docs/MAVEN.md) - запуск, сборка и тестирование проекта через Maven Wrapper
 - [docs/USER_MANUAL.md](docs/USER_MANUAL.md) - руководство пользователя
 
