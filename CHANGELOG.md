@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 1.1.6 - 2026-08-04
+
+### Changed
+- Video player now has separate SVG actions for `expand to window width` and `fullscreen`.
+- Fullscreen video mode now hides the control overlay together with the mouse cursor after inactivity.
+
+### Improved
+- Video player action buttons were visually aligned with the existing volume control.
+
+### Documentation
+- Added a production Nginx configuration for streaming large uploads with `proxy_request_buffering off`.
+- Documented the cause of the upload pause at `95%`, request-size limits, and configuration verification steps.
+
 ## 1.1.3 - 2026-08-04
 
 ### Changed

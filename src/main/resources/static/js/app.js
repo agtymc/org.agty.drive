@@ -844,11 +844,51 @@
         const volumeInput = player.querySelector("[data-video-volume]");
         const timeElement = player.querySelector("[data-video-time]");
         const muteButton = player.querySelector("[data-video-mute]");
+        const windowButton = player.querySelector("[data-video-window]");
+        const fullscreenButton = player.querySelector("[data-video-fullscreen]");
+        const windowIcon = player.querySelector("[data-video-window-icon]");
+        const fullscreenIcon = player.querySelector("[data-video-fullscreen-icon]");
+        const isVideoPlayer = media.tagName === "VIDEO";
         if (!media || !toggleButton || !progressInput || !volumeInput || !timeElement) {
             return;
         }
 
         let isSeeking = false;
+        let controlsHideTimer = null;
+
+        const isFullscreenActive = () => document.fullscreenElement === player;
+
+        const clearControlsHideTimer = () => {
+            if (controlsHideTimer !== null) {
+                window.clearTimeout(controlsHideTimer);
+                controlsHideTimer = null;
+            }
+        };
+
+        const hideOverlayControls = () => {
+            if (!isFullscreenActive()) {
+                return;
+            }
+            player.classList.remove("show-overlay-controls");
+        };
+
+        const scheduleControlsHide = () => {
+            clearControlsHideTimer();
+            if (!isFullscreenActive()) {
+                return;
+            }
+            controlsHideTimer = window.setTimeout(() => {
+                hideOverlayControls();
+            }, 2200);
+        };
+
+        const revealOverlayControls = () => {
+            if (!isFullscreenActive()) {
+                return;
+            }
+            player.classList.add("show-overlay-controls");
+            scheduleControlsHide();
+        };
 
         const updateTime = () => {
             timeElement.textContent = `${formatMediaTime(media.currentTime)} / ${formatMediaTime(media.duration)}`;
@@ -872,6 +912,83 @@
             const muted = media.muted || media.volume === 0;
             muteButton.classList.toggle("is-muted", muted);
             muteButton.setAttribute("aria-label", muted ? "Включить звук" : "Выключить звук");
+        };
+
+        const updateWindowButton = () => {
+            if (!windowButton) {
+                return;
+            }
+            const isWindowMode = player.classList.contains("is-window-mode");
+            windowButton.classList.toggle("is-active", isWindowMode);
+            const label = isWindowMode ? "Вернуть обычный размер" : "Развернуть по ширине окна";
+            windowButton.setAttribute("aria-label", label);
+            windowButton.setAttribute("title", label);
+            windowButton.setAttribute("data-tooltip", label);
+            if (windowIcon) {
+                windowIcon.src = isWindowMode ? "/icons/video-window-exit.svg" : "/icons/video-window-enter.svg";
+            }
+        };
+
+        const updateFullscreenButton = () => {
+            if (!fullscreenButton) {
+                return;
+            }
+            const isFullscreen = document.fullscreenElement === player;
+            fullscreenButton.classList.toggle("is-active", isFullscreen);
+            const label = isFullscreen ? "Выйти из полноэкранного режима" : "Развернуть на весь экран";
+            fullscreenButton.setAttribute("aria-label", label);
+            fullscreenButton.setAttribute("title", label);
+            fullscreenButton.setAttribute("data-tooltip", label);
+            if (fullscreenIcon) {
+                fullscreenIcon.src = isFullscreen ? "/icons/video-fullscreen-exit.svg" : "/icons/video-fullscreen-enter.svg";
+            }
+            player.classList.toggle("is-fullscreen-active", isFullscreen);
+            player.classList.toggle("show-overlay-controls", isFullscreen);
+            if (isFullscreen) {
+                fullscreenButton.blur();
+                scheduleControlsHide();
+            } else {
+                clearControlsHideTimer();
+            }
+        };
+
+        const exitWindowMode = () => {
+            player.classList.remove("is-window-mode");
+            updateWindowButton();
+        };
+
+        const toggleWindowMode = () => {
+            const activeWindowPlayer = document.querySelector(".share-video-player.is-window-mode");
+            if (activeWindowPlayer && activeWindowPlayer !== player) {
+                activeWindowPlayer.classList.remove("is-window-mode");
+                const activeButton = activeWindowPlayer.querySelector("[data-video-window]");
+                if (activeButton) {
+                    activeButton.classList.remove("is-active");
+                    activeButton.setAttribute("aria-label", "Развернуть по ширине окна");
+                    activeButton.setAttribute("title", "Развернуть по ширине окна");
+                    activeButton.setAttribute("data-tooltip", "Развернуть по ширине окна");
+                    const activeIcon = activeWindowPlayer.querySelector("[data-video-window-icon]");
+                    if (activeIcon) {
+                        activeIcon.src = "/icons/video-window-enter.svg";
+                    }
+                }
+            }
+            player.classList.toggle("is-window-mode");
+            updateWindowButton();
+        };
+
+        const toggleFullscreen = async () => {
+            if (!document.fullscreenEnabled) {
+                return;
+            }
+            if (document.fullscreenElement === player) {
+                await document.exitFullscreen();
+                return;
+            }
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            }
+            await player.requestFullscreen();
         };
 
         const applyVolume = (value) => {
@@ -911,9 +1028,12 @@
         applyVolume(readStoredMediaVolume());
         updateTime();
         updateToggle();
+        updateWindowButton();
+        updateFullscreenButton();
         player.classList.toggle("is-playing", !media.paused);
 
         const togglePlayback = () => {
+            revealOverlayControls();
             if (media.paused) {
                 void media.play();
             } else {
@@ -931,11 +1051,13 @@
         media.addEventListener("play", () => {
             updateToggle();
             player.classList.add("is-playing");
+            scheduleControlsHide();
         });
 
         media.addEventListener("pause", () => {
             updateToggle();
             player.classList.remove("is-playing");
+            revealOverlayControls();
         });
 
         media.addEventListener("loadedmetadata", updateTime);
@@ -950,6 +1072,7 @@
 
         progressInput.addEventListener("pointerdown", () => {
             isSeeking = true;
+            revealOverlayControls();
         });
         progressInput.addEventListener("input", seekToPercent);
         progressInput.addEventListener("click", (event) => {
@@ -958,10 +1081,12 @@
         progressInput.addEventListener("change", () => {
             seekToPercent();
             isSeeking = false;
+            scheduleControlsHide();
         });
         progressInput.addEventListener("pointerup", (event) => {
             seekToClientX(event.clientX);
             isSeeking = false;
+            scheduleControlsHide();
         });
         progressInput.addEventListener("blur", () => {
             isSeeking = false;
@@ -975,6 +1100,7 @@
             const normalized = Math.min(1, Math.max(0, percent / 100));
             applyVolume(normalized);
             window.localStorage.setItem("agtydrive_video_volume", String(normalized));
+            revealOverlayControls();
         });
 
         if (muteButton) {
@@ -987,6 +1113,33 @@
                 }
             });
         }
+
+        if (isVideoPlayer && windowButton) {
+            windowButton.addEventListener("click", toggleWindowMode);
+        }
+
+        if (isVideoPlayer && fullscreenButton) {
+            fullscreenButton.addEventListener("click", () => {
+                void toggleFullscreen();
+            });
+            document.addEventListener("fullscreenchange", updateFullscreenButton);
+        }
+
+        if (isVideoPlayer) {
+            player.addEventListener("mousemove", revealOverlayControls);
+            player.addEventListener("mouseenter", revealOverlayControls);
+            player.addEventListener("mouseleave", () => {
+                if (isFullscreenActive()) {
+                    hideOverlayControls();
+                    clearControlsHideTimer();
+                }
+            });
+            player.addEventListener("focusin", revealOverlayControls);
+            player.addEventListener("touchstart", revealOverlayControls, {passive: true});
+            player.addEventListener("keydown", revealOverlayControls);
+        }
+
+        media.addEventListener("ended", exitWindowMode);
     }
 
     async function loadPreviewText(src, title) {
@@ -2066,17 +2219,25 @@
                         <div class="share-video-progress-wrap">
                             <input type="range" min="0" max="100" value="0" class="share-video-progress" data-video-progress>
                         </div>
-                        <div class="share-video-controls-row">
-                            <div class="share-video-controls-left">
-                                <button type="button" class="share-video-button" data-video-toggle aria-label="Воспроизвести"></button>
-                                <div class="share-video-time" data-video-time>00:00 / 00:00</div>
-                            </div>
-                            <div class="share-video-controls-right">
-                                <div class="share-video-volume-wrap">
-                                    <button type="button" class="share-video-volume-button" data-video-mute aria-label="Выключить звук"></button>
-                                    <input type="range" min="0" max="100" value="50" class="share-video-volume" data-video-volume>
+                            <div class="share-video-controls-row">
+                                <div class="share-video-controls-left">
+                                    <button type="button" class="share-video-button" data-video-toggle aria-label="Воспроизвести"></button>
+                                    <div class="share-video-time" data-video-time>00:00 / 00:00</div>
                                 </div>
-                            </div>
+                                <div class="share-video-controls-right">
+                                    <div class="share-video-mode-actions">
+                                        <button type="button" class="share-video-mode-button share-video-window-button" data-video-window aria-label="Развернуть по ширине окна" title="Развернуть по ширине окна" data-tooltip="Развернуть по ширине окна">
+                                            <img src="/icons/video-window-enter.svg" alt="" data-video-window-icon>
+                                        </button>
+                                        <button type="button" class="share-video-mode-button share-video-fullscreen-button" data-video-fullscreen aria-label="Развернуть на весь экран" title="Развернуть на весь экран" data-tooltip="Развернуть на весь экран">
+                                            <img src="/icons/video-fullscreen-enter.svg" alt="" data-video-fullscreen-icon>
+                                        </button>
+                                    </div>
+                                    <div class="share-video-volume-wrap">
+                                        <button type="button" class="share-video-volume-button" data-video-mute aria-label="Выключить звук"></button>
+                                        <input type="range" min="0" max="100" value="50" class="share-video-volume" data-video-volume>
+                                    </div>
+                                </div>
                         </div>
                     </div>
                 `;

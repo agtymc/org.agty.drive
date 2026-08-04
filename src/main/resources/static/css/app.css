@@ -3029,6 +3029,79 @@ code {
     gap: 12px;
 }
 
+.share-video-mode-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.share-video-mode-button {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, 0.92);
+    opacity: 0.82;
+}
+
+.share-video-mode-button:hover {
+    background: transparent !important;
+    filter: none;
+    opacity: 1;
+}
+
+.share-video-mode-button.is-active {
+    background: transparent !important;
+    opacity: 1;
+}
+
+.share-video-mode-button img {
+    display: block;
+    width: 23px;
+    height: 23px;
+    margin: 0 auto;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    pointer-events: none;
+}
+
+.share-video-mode-button[data-tooltip]:hover::after,
+.share-video-mode-button[data-tooltip]:focus-visible::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 10px);
+    transform: translateX(-50%);
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(7, 10, 16, 0.96);
+    color: #edf1f7;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.share-video-window-button img {
+    width: 30px;
+    height: 15px;
+}
+
+.share-video-fullscreen-button img {
+    width: 12px;
+    height: 12px;
+}
+
 .share-video-progress,
 .share-video-volume {
     width: 100%;
@@ -3091,6 +3164,96 @@ code {
         linear-gradient(-45deg, transparent 44%, #ffffff 44%, #ffffff 56%, transparent 56%);
 }
 
+.share-video-player.is-window-mode {
+    position: fixed;
+    inset: 20px;
+    width: auto;
+    max-width: none;
+    height: auto;
+    z-index: 1400;
+    margin: 0;
+}
+
+.share-video-player.is-window-mode .share-video-stage {
+    height: calc(100vh - 128px);
+    max-height: none;
+}
+
+.share-video-player.is-window-mode .share-video-element {
+    max-height: 100%;
+}
+
+.share-video-player:fullscreen,
+.share-video-player:-webkit-full-screen {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border-radius: 0;
+}
+
+.share-video-player:fullscreen::backdrop,
+.share-video-player:-webkit-full-screen::backdrop {
+    background: #000;
+}
+
+.share-video-player:fullscreen .share-video-stage,
+.share-video-player:-webkit-full-screen .share-video-stage {
+    height: 100vh;
+    max-height: none;
+}
+
+.share-video-player:fullscreen .share-video-element,
+.share-video-player:-webkit-full-screen .share-video-element {
+    max-height: 100%;
+}
+
+.share-video-player.is-fullscreen-active {
+    position: relative;
+    overflow: hidden;
+}
+
+.share-video-player.is-fullscreen-active .share-video-controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    border-top: 0;
+    padding: 22px 18px 16px;
+    background: linear-gradient(180deg, rgba(5, 8, 12, 0) 0%, rgba(5, 8, 12, 0.78) 38%, rgba(5, 8, 12, 0.96) 100%);
+    opacity: 0;
+    transform: translateY(14px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.share-video-player.is-fullscreen-active.show-overlay-controls .share-video-controls {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.share-video-player.is-fullscreen-active .share-video-stage::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 120px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.24) 48%, rgba(0, 0, 0, 0.5) 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.share-video-player.is-fullscreen-active.show-overlay-controls .share-video-stage::after {
+    opacity: 1;
+}
+
+.share-video-player.is-fullscreen-active:not(.show-overlay-controls) {
+    cursor: none;
+}
+
 @media (max-width: 980px) {
     .drive-shell {
         grid-template-columns: 1fr;
@@ -3139,6 +3302,19 @@ code {
         justify-content: space-between;
     }
 
+    .share-video-controls-right,
+    .share-video-mode-actions {
+        width: 100%;
+    }
+
+    .share-video-controls-right {
+        flex-wrap: wrap;
+    }
+
+    .share-video-mode-button {
+        flex: 0 0 auto;
+    }
+
     .share-video-volume-wrap {
         width: 100%;
     }
@@ -3151,6 +3327,16 @@ code {
         height: auto;
         min-height: 92px;
         padding: 16px;
+    }
+
+    .share-video-player.is-window-mode {
+        inset: 12px;
+    }
+
+    .share-video-player.is-window-mode .share-video-stage,
+    .share-video-player:fullscreen .share-video-stage,
+    .share-video-player:-webkit-full-screen .share-video-stage {
+        height: 100vh;
     }
 
 }
