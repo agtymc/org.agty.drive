@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.1.3 - 2026-08-04
+
+### Changed
+- Upload storage flow no longer writes an extra application-managed temporary copy before moving files into final storage.
+- Stored file names are now generated without computing `SHA-256` from file contents.
+
+### Improved
+- Large file and video uploads perform better when application storage is placed on a local disk.
+
 ## 1.1.2 - 2026-07-31
 
 ### Added

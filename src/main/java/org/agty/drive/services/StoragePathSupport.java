@@ -18,8 +18,12 @@ package org.agty.drive.services;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.HexFormat;
 
 public final class StoragePathSupport {
 
@@ -33,24 +37,38 @@ public final class StoragePathSupport {
                 : Paths.get(System.getProperty("user.dir")).resolve(configuredPath).normalize();
     }
 
-    public static String buildStorageName(String checksumSha256, String extension, LocalDate date) {
-        String checksum = checksumSha256 == null || checksumSha256.isBlank()
+    public static String buildStorageName(String storageKey, String extension, LocalDate date) {
+        String normalizedKey = storageKey == null || storageKey.isBlank()
                 ? UUID.randomUUID().toString().replace("-", "")
-                : checksumSha256.toLowerCase();
-
+                : storageKey.toLowerCase();
         LocalDate actualDate = date == null ? LocalDate.now() : date;
-        String fileId = UUID.randomUUID().toString().replace("-", "");
         String suffix = extension == null || extension.isBlank() ? "" : "." + extension.toLowerCase();
 
         return "%s/%s/%s/%s/%s/%s%s".formatted(
                 actualDate.getYear(),
                 leftPad(actualDate.getMonthValue()),
                 leftPad(actualDate.getDayOfMonth()),
-                checksum.substring(0, 2),
-                checksum.substring(2, 4),
-                fileId,
+                normalizedKey.substring(0, 2),
+                normalizedKey.substring(2, 4),
+                normalizedKey,
                 suffix
         );
+    }
+
+    public static String buildStorageKey(Long ownerId, String originalFilename, LocalDate date) {
+        LocalDate actualDate = date == null ? LocalDate.now() : date;
+        String source = "%s:%s:%s:%s".formatted(
+                ownerId == null ? "0" : ownerId,
+                actualDate,
+                UUID.randomUUID(),
+                originalFilename == null ? "" : originalFilename.trim()
+        );
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
     }
 
     public static Path resolveContentPath(Path rootPath, String storageName) {

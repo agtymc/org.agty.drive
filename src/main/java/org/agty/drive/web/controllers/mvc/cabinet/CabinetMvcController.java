@@ -1204,4 +1204,5 @@ public class CabinetMvcController {
         }
         return cabinetMvcSupport.redirectCabinet(normalizedState);
     }
+
 }

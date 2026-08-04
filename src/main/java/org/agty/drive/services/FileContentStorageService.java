@@ -35,6 +35,7 @@ public class FileContentStorageService {
     public FileContentStorageService(@Value("${storage.content_dir:content}") String contentDir) {
         this.rootPath = StoragePathSupport.resolveRootPath(contentDir);
         ensureRootExists();
+        ensureStagingExists();
     }
 
     public void save(String storageName, byte[] content) {
@@ -54,19 +55,20 @@ public class FileContentStorageService {
         }
     }
 
-    public Path createTempFile() {
+    public Path createStagingFile(String extension) {
         try {
-            Path tempDir = rootPath.resolve(".upload-tmp");
-            Files.createDirectories(tempDir);
-            return Files.createTempFile(tempDir, "upload-", ".tmp");
+            Path stagingDir = stagingDir();
+            Files.createDirectories(stagingDir);
+            String suffix = extension == null || extension.isBlank() ? ".tmp" : "." + extension.toLowerCase();
+            return Files.createTempFile(stagingDir, "upload-", suffix);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create temp upload file", e);
+            throw new RuntimeException("Failed to create staging upload file", e);
         }
     }
 
-    public void moveIntoStorage(Path tempPath, String storageName) {
-        if (tempPath == null) {
-            throw new IllegalArgumentException("tempPath is required");
+    public void moveIntoStorage(Path stagingPath, String storageName) {
+        if (stagingPath == null) {
+            throw new IllegalArgumentException("stagingPath is required");
         }
         if (storageName == null || storageName.isBlank()) {
             throw new IllegalArgumentException("storageName is required");
@@ -78,9 +80,9 @@ public class FileContentStorageService {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.move(tempPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(stagingPath, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to move temp upload into storage: " + storageName, e);
+            throw new RuntimeException("Failed to move staging upload into storage: " + storageName, e);
         }
     }
 
@@ -147,7 +149,7 @@ public class FileContentStorageService {
         }
     }
 
-    public void deleteTempFile(Path path) {
+    public void deleteStagingFile(Path path) {
         if (path == null) {
             return;
         }
@@ -155,7 +157,7 @@ public class FileContentStorageService {
             Files.deleteIfExists(path);
             cleanupEmptyParents(path.getParent());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to delete temp file: " + path, e);
+            throw new RuntimeException("Failed to delete staging file: " + path, e);
         }
     }
 
@@ -181,6 +183,10 @@ public class FileContentStorageService {
         return StoragePathSupport.resolveContentPath(rootPath, storageName);
     }
 
+    private Path stagingDir() {
+        return rootPath.resolve(".upload-staging");
+    }
+
     private void cleanupEmptyParents(Path path) throws IOException {
         Path current = path;
         while (current != null && !current.equals(rootPath) && current.startsWith(rootPath)) {
@@ -203,6 +209,14 @@ public class FileContentStorageService {
             Files.createDirectories(rootPath);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to create storage directory: " + rootPath, e);
+        }
+    }
+
+    private void ensureStagingExists() {
+        try {
+            Files.createDirectories(stagingDir());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create staging directory: " + stagingDir(), e);
         }
     }
 }

@@ -30,14 +30,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.IOException;
 import java.sql.SQLException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 @Service
@@ -228,32 +225,18 @@ public class FileService {
         }
 
         MultipartFile multipartFile = uploadDto.getFile();
-        Path tempPath = null;
+        Path stagingPath = null;
         String finalStorageName = null;
         boolean repositorySaved = false;
         try {
             String originalFilename = filenamePolicyService.normalizeFilename(multipartFile.getOriginalFilename());
             String extension = extractExtension(originalFilename);
             String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(multipartFile.getContentType(), extension);
-            tempPath = fileContentStorageService.createTempFile();
-            String checksumSha256;
-            long actualSizeBytes = 0L;
-            MessageDigest digest = newSha256Digest();
-
-            try (InputStream inputStream = multipartFile.getInputStream();
-                 OutputStream outputStream = Files.newOutputStream(tempPath)) {
-                byte[] buffer = new byte[1024 * 1024];
-                int read;
-                while ((read = inputStream.read(buffer)) >= 0) {
-                    if (read == 0) {
-                        continue;
-                    }
-                    digest.update(buffer, 0, read);
-                    outputStream.write(buffer, 0, read);
-                    actualSizeBytes += read;
-                }
-            }
-            checksumSha256 = HexFormat.of().formatHex(digest.digest());
+            String storageKey = StoragePathSupport.buildStorageKey(ownerId, originalFilename, AppTime.today());
+            finalStorageName = StoragePathSupport.buildStorageName(storageKey, extension, AppTime.today());
+            stagingPath = fileContentStorageService.createStagingFile(extension);
+            multipartFile.transferTo(stagingPath.toFile());
+            long actualSizeBytes = Files.size(stagingPath);
 
             if (Boolean.TRUE.equals(uploadDto.getOverwriteExisting())) {
                 FileItemDto existingFile = fileRepository.findByOwnerIdAndFolderIdAndOriginalFilename(ownerId, uploadDto.getFolderId(), originalFilename);
@@ -272,12 +255,7 @@ public class FileService {
             fileItemDto.setMimeType(mimeType);
             fileItemDto.setExtension(extension);
             fileItemDto.setSizeBytes(actualSizeBytes);
-            fileItemDto.setChecksumSha256(checksumSha256);
-            finalStorageName = StoragePathSupport.buildStorageName(
-                    fileItemDto.getChecksumSha256(),
-                    extension,
-                    AppTime.today()
-            );
+            fileItemDto.setChecksumSha256(null);
             fileItemDto.setStorageName(finalStorageName);
             fileItemDto.setDescription(uploadDto.getDescription());
             fileItemDto.setExpiresAt(expirationPolicyService.normalizeExpirationInput(uploadDto.getExpiresAt()));
@@ -285,8 +263,8 @@ public class FileService {
             fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
             fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
 
-            fileContentStorageService.moveIntoStorage(tempPath, finalStorageName);
-            tempPath = null;
+            fileContentStorageService.moveIntoStorage(stagingPath, finalStorageName);
+            stagingPath = null;
 
             FileItemDto saved = saveUploadedFileRecord(
                     fileItemDto,
@@ -318,9 +296,9 @@ public class FileService {
             }
             throw e;
         } finally {
-            if (tempPath != null) {
+            if (stagingPath != null) {
                 try {
-                    fileContentStorageService.deleteTempFile(tempPath);
+                    fileContentStorageService.deleteStagingFile(stagingPath);
                 } catch (RuntimeException ignored) {
                 }
             }
@@ -341,24 +319,24 @@ public class FileService {
             return null;
         }
 
-        Path tempPath = null;
+        Path stagingPath = null;
         String finalStorageName = null;
         boolean repositorySaved = false;
         try {
             String extension = extractExtension(normalizedFilename);
             String mimeType = mimeTypePolicyService.normalizeUploadedMimeType(contentType, extension);
-            tempPath = fileContentStorageService.createTempFile();
-            MessageDigest digest = newSha256Digest();
+            String storageKey = StoragePathSupport.buildStorageKey(ownerId, normalizedFilename, AppTime.today());
+            finalStorageName = StoragePathSupport.buildStorageName(storageKey, extension, AppTime.today());
+            stagingPath = fileContentStorageService.createStagingFile(extension);
             long actualSizeBytes = 0L;
 
-            try (OutputStream outputStream = Files.newOutputStream(tempPath)) {
+            try (OutputStream outputStream = Files.newOutputStream(stagingPath)) {
                 byte[] buffer = new byte[1024 * 1024];
                 int read;
                 while ((read = inputStream.read(buffer)) >= 0) {
                     if (read == 0) {
                         continue;
                     }
-                    digest.update(buffer, 0, read);
                     outputStream.write(buffer, 0, read);
                     actualSizeBytes += read;
                 }
@@ -377,7 +355,6 @@ public class FileService {
                 return null;
             }
 
-            String checksumSha256 = HexFormat.of().formatHex(digest.digest());
             FileItemDto fileItemDto = new FileItemDto();
             fileItemDto.setOwnerId(ownerId);
             fileItemDto.setFolderId(folderId);
@@ -385,19 +362,14 @@ public class FileService {
             fileItemDto.setMimeType(mimeType);
             fileItemDto.setExtension(extension);
             fileItemDto.setSizeBytes(actualSizeBytes);
-            fileItemDto.setChecksumSha256(checksumSha256);
-            finalStorageName = StoragePathSupport.buildStorageName(
-                    checksumSha256,
-                    extension,
-                    AppTime.today()
-            );
+            fileItemDto.setChecksumSha256(null);
             fileItemDto.setStorageName(finalStorageName);
             fileItemDto.setPreviewStatus("NONE");
             fileItemDto.setIsImage(fileItemDto.getMimeType().startsWith("image/"));
             fileItemDto.setIsVideo(fileItemDto.getMimeType().startsWith("video/"));
 
-            fileContentStorageService.moveIntoStorage(tempPath, finalStorageName);
-            tempPath = null;
+            fileContentStorageService.moveIntoStorage(stagingPath, finalStorageName);
+            stagingPath = null;
 
             FileItemDto saved = saveUploadedFileRecord(
                     fileItemDto,
@@ -429,9 +401,9 @@ public class FileService {
             }
             throw e;
         } finally {
-            if (tempPath != null) {
+            if (stagingPath != null) {
                 try {
-                    fileContentStorageService.deleteTempFile(tempPath);
+                    fileContentStorageService.deleteStagingFile(stagingPath);
                 } catch (RuntimeException ignored) {
                 }
             }
@@ -617,14 +589,6 @@ public class FileService {
         }
 
         return originalFilename.substring(dotIndex + 1).toLowerCase();
-    }
-
-    private MessageDigest newSha256Digest() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private Comparator<FileItemDto> buildMediaComparator(String sortMode) {
